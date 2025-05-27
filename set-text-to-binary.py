@@ -37,12 +37,17 @@ def prepend_zeros_to_text(text, context_size=CONTEXT_SIZE):
     """
     Prepend the text with as many zero ASCII characters (\x00) as context_size.
     Args:
-        text (str): The input text.
-        context_size (int): Number of zero bytes to prepend. Defaults to CONTEXT_SIZE.
+        text (bytes or str): The input text or bytes.
+        context_size (int): Number of zero bytes/chars to prepend. Defaults to CONTEXT_SIZE.
     Returns:
-        str: The text with prepended zero bytes.
+        Same type as input: The text/bytes with prepended zero bytes/chars.
     """
-    return ('\x00' * context_size) + text
+    if isinstance(text, bytes):
+        return (b'\x00' * context_size) + text
+    elif isinstance(text, str):
+        return ('\x00' * context_size) + text
+    else:
+        raise TypeError(f"Unsupported type for prepend_zeros_to_text: {type(text)}")
 
 
 def process_text_file(file_path, chunk_type):
@@ -55,6 +60,8 @@ def process_text_file(file_path, chunk_type):
     features = []
     labels = []
     window_size = CONTEXT_SIZE * 8  # Same as MNIST
+
+    data = prepend_zeros_to_text(data, context_size=CONTEXT_SIZE)
 
     if chunk_type == 'unigram':
         # Process as single bytes
