@@ -198,13 +198,6 @@ if __name__ == '__main__':
         raise ValueError("Unknown dataset type")
 
     # Convert to torch tensors
-    features = torch.from_numpy(X)
-    labels = torch.from_numpy(y)
-
-    # Save as pickle file
-    with open(args.output, 'wb') as f:
-        pickle.dump({'features': features, 'labels': labels}, f)
-    print(f"Saved dataset to {args.output} (features: {features.shape}, labels: {labels.shape})")
 
     parser = argparse.ArgumentParser(
         description="Generate quantum benchmark datasets in PGC/MNIST-compatible .pkl format."
@@ -227,11 +220,8 @@ if __name__ == '__main__':
         _demo()
         sys.exit(0)
     if not args.n_bits or not args.output:
-        features = torch.from_numpy(X)
-        labels = torch.from_numpy(y)
-        with open(out_file, 'wb') as f:
-            pickle.dump({'features': features, 'labels': labels}, f)
-        print(f"Saved dataset to {out_file} (features: {features.shape}, labels: {labels.shape})")
+        print("--n_bits and --output are required for dataset generation.", file=sys.stderr)
+        sys.exit(1)
 
     if args.dataset == 'grover':
         X, y, key = grover_dataset(args.n_bits, args.pos_ratio, rng)
