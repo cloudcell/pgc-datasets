@@ -6,4 +6,6 @@ imageio>=2.9.0
 screeninfo==0.8.0
 matplotlib
 numpy
+pandas
+scikit-learn
 
