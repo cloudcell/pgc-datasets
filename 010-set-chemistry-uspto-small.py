@@ -128,14 +128,11 @@ def generate_samples(input_path, mode='unigram', context_len=MAX_FORMULA_LENGTH)
                     
                     # Shift context window
                     curr = curr[1:] + ch
+
+                    # if the last character of the curr is end of formula character, then break
+                    if curr[-1] == ';':
+                        break
                 
-                # # Add end-of-formula sample
-                # feature = curr
-                # label = ';'
-                # feature_bits = np.concatenate([char_to_binary(c) for c in feature])
-                # features.append(feature_bits)
-                # labels.append(ord(label))
-                # label_chars.append(label)
             elif mode == 'bigram':
                 # Bigram mode: predict next character pair using combined ASCII values
                 for i in range(len(seq) - 1):
@@ -153,15 +150,11 @@ def generate_samples(input_path, mode='unigram', context_len=MAX_FORMULA_LENGTH)
                     
                     # Shift context window
                     curr = curr[1:] + seq[i]
+
+                    # if the last character of the curr is end of formula character, then break
+                    if curr[-1] == ';':
+                        break
                 
-                # # Handle the last character + null
-                # if len(seq) > 0:
-                #     bigram = seq[-1] + '\0'  # Last char + null
-                #     feature_bits = np.concatenate([char_to_binary(c) for c in feature])
-                #     features.append(feature_bits)
-                #     label_val = ord(bigram[0]) * 256 + ord(bigram[1])
-                #     labels.append(label_val)
-                #     label_chars.append(bigram)
             elif mode == 'trigram':
                 # Trigram mode: predict next character triplet using combined ASCII values
                 for i in range(len(seq)):
@@ -182,6 +175,10 @@ def generate_samples(input_path, mode='unigram', context_len=MAX_FORMULA_LENGTH)
                     label_chars.append(trigram)
                     # Shift context window
                     curr = curr[1:] + seq[i]
+
+                    # if the last character of the curr is end of formula character, then break
+                    if curr[-1] == ';':
+                        break
     
     # Convert to numpy arrays and then to torch tensors
     if features:
