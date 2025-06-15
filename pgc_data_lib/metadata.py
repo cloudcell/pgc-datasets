@@ -118,14 +118,19 @@ def save_dataset_with_metadata(filename, features, labels, metadata):
         Metadata dictionary containing dataset information
     """
     import pickle
-    import os
+    import time
     
-    # Ensure directory exists
-    os.makedirs(os.path.dirname(os.path.abspath(filename)), exist_ok=True)
+    # if filename already has .pkl extension, remove it
+    if filename.endswith('.pkl'):
+        filename = filename[:-4]
+
+    # if the prefix is "dataset", remove it
+    if filename.startswith('dataset_'):
+        filename = filename[8:]
     
-    # Add .pkl extension if not present
-    if not filename.endswith('.pkl'):
-        filename = filename + '.pkl'
+    # add suffix to filename as yyyymmdd_hhmmss
+    filename = "dataset_" + filename + '_' + time.strftime('%Y%m%d_%H%M%S') + '.pkl'
+
 
     # Convert numpy arrays to torch tensors if needed
     if isinstance(features, np.ndarray):

@@ -6,6 +6,12 @@ from tqdm import tqdm
 import torch
 import numpy as np
 
+
+MAX_FORMULA_LENGTH_FOR_PREFILTERING = 95
+
+# Define maximum formula length for context padding
+MAX_FORMULA_LENGTH = 98
+
 # Add parent directory to path to import pgc_data_lib
 sys.path.append(os.path.abspath(os.path.dirname(__file__)))
 from pgc_data_lib.metadata import create_metadata, validate_classification_labels, save_dataset_with_metadata
@@ -28,14 +34,24 @@ base, ext = os.path.splitext(os.path.basename(input_filepath))
 # Define output file paths (in current directory)
 output_filepath = f"{base}_filtered{ext}"
 
-# Filter the input file to remove lines without two '>'
+# Filter the input file to remove lines without two '>' and formulas longer than MAX_FORMULA_LENGTH_FOR_PREFILTERING
 if not os.path.exists(output_filepath):
-    with open(input_filepath, 'r', encoding='utf-8') as f_in, open(output_filepath, 'w', encoding='utf-8') as f_out:
+    print(f"Filtering data...")
+    total_lines = 0
+    filtered_lines = 0
+    with open(input_filepath, 'r') as f_in, open(output_filepath, 'w') as f_out:
         for line in f_in:
+            total_lines += 1
+            # Check for required '>' characters
             if line.count('>') >= 2:
-                f_out.write(line)
-
-print(f"Filtering complete. Filtered data saved to: {output_filepath}")
+                # Check entire formula length (the whole line)
+                if len(line) <= MAX_FORMULA_LENGTH_FOR_PREFILTERING:
+                    f_out.write(line)
+                    filtered_lines += 1
+    print(f"Filtering complete. Kept {filtered_lines} out of {total_lines} lines.")
+    print(f"Filtered data saved to: {output_filepath}")
+else:
+    print(f"Using existing filtered data from: {output_filepath}")
 
 # --- Generate samples from the filtered file (no splitting) ---
 
@@ -44,7 +60,7 @@ def char_to_binary(char):
     ascii_val = ord(char) & 255  # Use full 8 bits
     return np.array([int(b) for b in format(ascii_val, '08b')], dtype=np.uint8)
 
-def generate_samples(input_path, mode='unigram', context_len=98):
+def generate_samples(input_path, mode='unigram', context_len=MAX_FORMULA_LENGTH):
     """
     Generate samples from chemistry data with bit encoding and support for unigram/bigram modes
     
@@ -81,8 +97,8 @@ def generate_samples(input_path, mode='unigram', context_len=98):
             stub = line[:idx2+1]
             seq = line[idx2+1:].strip()
             
-            # Pad with null characters instead of spaces
-            stub_padded = stub.ljust(context_len, '\0')
+            # Pad with null characters on the left instead of the right
+            stub_padded = stub.rjust(context_len, '\0')
             if len(stub_padded) > context_len:
                 stub_padded = stub_padded[-context_len:]  # Take last context_len chars if too long
                 
@@ -157,26 +173,26 @@ def generate_samples(input_path, mode='unigram', context_len=98):
         raise ValueError("No samples were generated. Check the input data.")
 
 # Generate samples from the filtered file with the specified mode
-features_tensor, raw_labels_tensor, label_chars = generate_samples(
-    output_filepath, 
-    mode=args.mode, 
-    context_len=98
+features_tensor, labels_tensor, label_chars = generate_samples(
+    output_filepath,
+    mode=args.mode,
+    context_len=MAX_FORMULA_LENGTH
 )
 
 # Create metadata using the library function
 metadata = create_metadata(
     features=features_tensor,
-    labels=raw_labels_tensor,
-    dataset_name=f"uspto-small-{args.mode}",
+    labels=labels_tensor,
+    dataset_name=f"chem-uspto2023-small-{args.mode}",
     task_type="classification",
     feature_dim=(features_tensor.shape[1],)
 )
 
 # Define output filename in current directory
-output_pkl = f"{base}_filtered_{args.mode}_dataset.pkl"
+output_pkl = f"010-chem-uspto2023-small-{args.mode}.pkl"
 
 # Save dataset with metadata
-save_dataset_with_metadata(output_pkl, features_tensor, raw_labels_tensor, metadata)
+save_dataset_with_metadata(output_pkl, features_tensor, labels_tensor, metadata)
 
 print(f"Processing complete. All data merged into a single dataset.")
 print(f"Mode: {args.mode}")
