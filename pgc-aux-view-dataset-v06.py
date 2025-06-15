@@ -433,6 +433,7 @@ class DatasetViewer:
         shape_menu.add_separator()
         shape_menu.add_command(label="Custom Shape...", command=self.set_custom_shape)
         dataset_menu.add_command(label="View Metadata", command=self.show_metadata_dialog)
+
         dataset_menu.add_command(label="Dataset Info", command=self.show_dataset_info)
 
         # Add Help menu with ASCII Reference
@@ -702,7 +703,7 @@ Max Label Value: {label_max}
         # Add close button
         ttk.Button(main_frame, text="Close", command=dialog.destroy).pack(pady=10)
 
-def show_about_dialog(self):
+    def show_about_dialog(self):
         import tkinter as tk
         from tkinter import ttk
         from PIL import Image, ImageTk
