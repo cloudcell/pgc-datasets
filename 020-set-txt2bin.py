@@ -78,11 +78,16 @@ def process_text_file(file_path, num_features, feature_type, prepend_nulls=True,
             binary_data.extend(char_to_binary('\0'))
             ascii_chars.append('\0')  # a file must end with null character
         elif feature_type == 'bigram':
-            binary_data.extend(char_to_binary('\0\0'))
-            ascii_chars.append('\0\0')  # a file must end with null character
+            for c in '\0\0':
+                binary_data.extend(char_to_binary(c))
+            ascii_chars.append('\0')
+            ascii_chars.append('\0')  # append two null characters
         elif feature_type == 'trigram':
-            binary_data.extend(char_to_binary('\0\0\0'))
-            ascii_chars.append('\0\0\0')  # a file must end with null character
+            for c in '\0\0\0':
+                binary_data.extend(char_to_binary(c))
+            ascii_chars.append('\0')
+            ascii_chars.append('\0')
+            ascii_chars.append('\0')  # append three null characters
     
 
     print("Converting characters to binary...")
