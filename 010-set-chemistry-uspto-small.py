@@ -146,14 +146,13 @@ def generate_samples(input_path, mode='unigram', context_len=MAX_FORMULA_LENGTH)
                     curr = curr[1:] + seq[i]
                 
                 # Handle the last character + null
-                bigram = seq[-1] + '\0'  # Last char + null
-                
-                feature_bits = np.concatenate([char_to_binary(c) for c in feature])
-                features.append(feature_bits)
-                
-                label_val = ord(bigram[0]) * 256 + ord(bigram[1])
-                labels.append(label_val)
-                label_chars.append(bigram)
+                if len(seq) > 0:
+                    bigram = seq[-1] + '\0'  # Last char + null
+                    feature_bits = np.concatenate([char_to_binary(c) for c in feature])
+                    features.append(feature_bits)
+                    label_val = ord(bigram[0]) * 256 + ord(bigram[1])
+                    labels.append(label_val)
+                    label_chars.append(bigram)
             elif mode == 'trigram':
                 # Trigram mode: predict next character triplet using combined ASCII values
                 for i in range(len(seq)):
