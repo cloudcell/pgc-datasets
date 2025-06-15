@@ -14,6 +14,7 @@ from tqdm import tqdm
 import sys
 import argparse
 import tempfile
+from pgc_data_lib.metadata import create_metadata, save_dataset_with_metadata
 
 class TextBinaryDataset(Dataset):
     def __init__(self, features, labels):
@@ -31,60 +32,67 @@ def char_to_binary(char):
     val = ord(char)
     return [int(b) for b in format(val, '08b')]
 
-def process_text_file(file_path, prepend_nulls=True):
+def process_text_file(file_path, num_features, feature_type, prepend_nulls=True):
     """Process text file and convert to binary sequences with sliding windows.
-    
     Args:
         file_path: Path to the text file to process
-        prepend_nulls: Whether to prepend null characters the size of num_features
+        num_features: Number of binary features per sample (must be divisible by 8)
+        feature_type: 'unigram', 'bigram', or 'trigram'
+        prepend_nulls: Whether to prepend null characters the size of num_features/8
     """
     with open(file_path, 'r', encoding='utf-8', errors='replace') as f:
         text = f.read()
-    
-    # Convert all valid ASCII characters to binary
+
     binary_data = []
     ascii_chars = []
-    
-    # If prepend_nulls is True, prepend null characters the size of window_size/8
-    # This helps with initial prediction where there's no context
-    window_size = 784  # Same as MNIST
+    window_size = num_features
+    char_group = 1 if feature_type == 'unigram' else (2 if feature_type == 'bigram' else 3)
+
+    # Prepend null chars if needed
     if prepend_nulls:
-        null_chars_count = window_size // 8  # Number of null chars needed to fill one window
+        null_chars_count = window_size // 8
         print(f"Prepending {null_chars_count} null characters...")
-        # Prepend null characters
         for _ in range(null_chars_count):
             binary_data.extend(char_to_binary('\0'))
             ascii_chars.append('\0')
-    
+
     print("Converting characters to binary...")
     for char in tqdm(text, desc="Processing characters"):
         binary_data.extend(char_to_binary(char))
         ascii_chars.append(char)
-    
-    # Create samples using sliding window
+
     features = []
     labels = []
-    
-    # We need at least window_size binary digits plus one character for the label
-    if len(binary_data) >= window_size + 8:
-        # Calculate number of possible windows when sliding by 8 bits
-        total_windows = (len(binary_data) - window_size) // 8
+    # Sliding window by char_group*8 bits each time
+    if len(binary_data) >= window_size + char_group*8:
+        total_windows = (len(binary_data) - window_size) // (char_group*8)
         print("\nCreating sliding windows...")
         for i in tqdm(range(total_windows), desc="Creating samples"):
-            # Get window starting at i*8 (sliding by 8 bits each time)
-            window_start = i * 8
+            window_start = i * char_group * 8
             window = binary_data[window_start:window_start + window_size]
-            
-            # The next character after our window
-            # Calculate the character position by dividing by 8 (bits per char)
-            # Since window_start is in bits, we need to add window_size and then
-            # find which character position this corresponds to
             next_char_idx = (window_start + window_size) // 8
-            if next_char_idx < len(ascii_chars):
-                features.append(window)
-                # Use the full ASCII value without masking to preserve all information
-                labels.append(ord(ascii_chars[next_char_idx]))
-    
+            # Label: next char(s) after the window
+            if feature_type == 'unigram':
+                if next_char_idx < len(ascii_chars):
+                    features.append(window)
+                    labels.append(ord(ascii_chars[next_char_idx]))
+            elif feature_type == 'bigram':
+                if next_char_idx + 1 < len(ascii_chars):
+                    b1 = ord(ascii_chars[next_char_idx])
+                    b2 = ord(ascii_chars[next_char_idx+1])
+                    label = (b1 << 8) | b2
+                    features.append(window)
+                    labels.append(label)
+            elif feature_type == 'trigram':
+                if next_char_idx + 2 < len(ascii_chars):
+                    b1 = ord(ascii_chars[next_char_idx])
+                    b2 = ord(ascii_chars[next_char_idx+1])
+                    b3 = ord(ascii_chars[next_char_idx+2])
+                    label = (b1 << 16) | (b2 << 8) | b3
+                    features.append(window)
+                    labels.append(label)
+            else:
+                raise ValueError("feature_type must be 'unigram', 'bigram', or 'trigram'")
     return features, labels
 
 def main():
@@ -93,17 +101,24 @@ def main():
         parser = argparse.ArgumentParser(description="Convert text to binary dataset")
         parser.add_argument('input_file', help='Input file. Use \'-\' to read from stdin')
         parser.add_argument('output_file', help='Output file. Use \'-\' to write to stdout')
+        parser.add_argument('--num_features', type=int, required=True, help='Number of binary features (must be divisible by 8, e.g. 784)')
+        parser.add_argument('--class_type', required=True, choices=['unigram', 'bigram', 'trigram'], help="Class type: 'unigram', 'bigram', or 'trigram'")
         parser.add_argument('--no-prepend', action='store_true', help='Do not prepend null characters (default: prepend)')
         args = parser.parse_args()
 
+        # Validate num_features
+        if args.num_features % 8 != 0:
+            print(f"Error: --num_features must be divisible by 8 (got {args.num_features}). To read N chars, set --num_features to N*8. For example, to use 98 chars, use --num_features 784.")
+            sys.exit(2)
+        num_chars = args.num_features // 8
+        print(f"Using num_features={args.num_features} (i.e. {num_chars} chars per sample)")
+
         # Process input
         if args.input_file == '-':
-            # Read from stdin
             content = sys.stdin.buffer.read()
             if not content:
                 print("Error: No input received from stdin", file=sys.stderr)
                 sys.exit(1)
-            # Create temporary file for input
             with tempfile.NamedTemporaryFile(delete=False) as temp_file:
                 temp_file.write(content)
                 input_file = temp_file.name
@@ -111,36 +126,19 @@ def main():
             input_file = args.input_file
 
         # Process the text file
-        features, labels = process_text_file(input_file, prepend_nulls=not args.no_prepend)
+        features, labels = process_text_file(input_file, args.num_features, args.feature, prepend_nulls=not args.no_prepend)
 
         # Create the dataset
         dataset = TextBinaryDataset(features, labels)
 
-        # Handle output
-        if args.output_file == '-':
-            # Write to stdout
-            try:
-                sys.stdout.buffer.write(pickle.dumps({
-                    'features': dataset.features,
-                    'labels': dataset.labels
-                }))
-                sys.stdout.buffer.flush()
-            except BrokenPipeError:
-                print("Error: Broken pipe detected", file=sys.stderr)
-                sys.exit(1)
-        else:
-            # Write to file
-            with open(args.output_file, 'wb') as f:
-                pickle.dump({
-                    'features': dataset.features,
-                    'labels': dataset.labels
-                }, f)
+        # Prepare metadata using the library
+        dataset_name = f"txt2bin-{args.feature}-{args.num_features}"
+        metadata = create_metadata(dataset.features, dataset.labels, dataset_name=dataset_name, task_type="classification", feature_dim=(args.num_features,))
+
+        # Save dataset with metadata using the library
+        save_dataset_with_metadata(args.output_file, dataset.features, dataset.labels, metadata)
 
         print(f"Dataset created with {len(dataset)} samples")
-        if args.output_file == '-':
-            print("Dataset written to stdout")
-        else:
-            print(f"Saved dataset to {args.output_file}")
 
         # Clean up temporary file if it was created
         if args.input_file == '-':
@@ -151,7 +149,7 @@ def main():
         sys.exit(130)
     except Exception as e:
         print(f"Error processing dataset: {str(e)}", file=sys.stderr)
-        if args.input_file == '-':
+        if 'input_file' in locals() and args.input_file == '-':
             try:
                 os.unlink(input_file)
             except:
