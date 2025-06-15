@@ -96,6 +96,15 @@ def generate_samples(input_path, mode='unigram', context_len=MAX_FORMULA_LENGTH)
                 
             stub = line[:idx2+1]
             seq = line[idx2+1:].strip()
+
+            # add end of formula character for unigram, bigram, and trigram
+            if mode == 'unigram':
+                seq += ';'
+            elif mode == 'bigram':
+                seq += ';\0'
+            elif mode == 'trigram':
+                seq += ';\0\0'
+
             
             # Pad with null characters on the left instead of the right
             stub_padded = stub.rjust(context_len, '\0')
@@ -120,13 +129,13 @@ def generate_samples(input_path, mode='unigram', context_len=MAX_FORMULA_LENGTH)
                     # Shift context window
                     curr = curr[1:] + ch
                 
-                # Add end-of-formula sample
-                feature = curr
-                label = ';'
-                feature_bits = np.concatenate([char_to_binary(c) for c in feature])
-                features.append(feature_bits)
-                labels.append(ord(label))
-                label_chars.append(label)
+                # # Add end-of-formula sample
+                # feature = curr
+                # label = ';'
+                # feature_bits = np.concatenate([char_to_binary(c) for c in feature])
+                # features.append(feature_bits)
+                # labels.append(ord(label))
+                # label_chars.append(label)
             elif mode == 'bigram':
                 # Bigram mode: predict next character pair using combined ASCII values
                 for i in range(len(seq) - 1):
@@ -145,14 +154,14 @@ def generate_samples(input_path, mode='unigram', context_len=MAX_FORMULA_LENGTH)
                     # Shift context window
                     curr = curr[1:] + seq[i]
                 
-                # Handle the last character + null
-                if len(seq) > 0:
-                    bigram = seq[-1] + '\0'  # Last char + null
-                    feature_bits = np.concatenate([char_to_binary(c) for c in feature])
-                    features.append(feature_bits)
-                    label_val = ord(bigram[0]) * 256 + ord(bigram[1])
-                    labels.append(label_val)
-                    label_chars.append(bigram)
+                # # Handle the last character + null
+                # if len(seq) > 0:
+                #     bigram = seq[-1] + '\0'  # Last char + null
+                #     feature_bits = np.concatenate([char_to_binary(c) for c in feature])
+                #     features.append(feature_bits)
+                #     label_val = ord(bigram[0]) * 256 + ord(bigram[1])
+                #     labels.append(label_val)
+                #     label_chars.append(bigram)
             elif mode == 'trigram':
                 # Trigram mode: predict next character triplet using combined ASCII values
                 for i in range(len(seq)):
