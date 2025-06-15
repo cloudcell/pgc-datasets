@@ -15,9 +15,15 @@ PGC / classical-ML pipeline.
 Author : (c) 2025  —  Cloudcell / Polymorphic Geometry Project
 License: MIT
 """
+import sys
+import pickle
+import torch
 import numpy as np
-from itertools import product
+import argparse
 from typing import Tuple, Optional
+from itertools import product
+
+print("DEBUG: Running set-quantum_bench-pgc.py version with --n_samples support")
 import torch
 import pickle
 import argparse
@@ -154,6 +160,7 @@ if __name__ == '__main__':
     parser.add_argument('--seed', type=int, default=None, help='Random seed.')
     parser.add_argument('--all', action='store_true',
                         help='Generate all datasets with default values.')
+    parser.add_argument('--n_samples', type=int, default=None, help='Number of samples to output (default: all).')
     args = parser.parse_args()
 
     def save_dataset(X, y, out_file):
@@ -199,41 +206,39 @@ if __name__ == '__main__':
 
     # Convert to torch tensors
 
-    parser = argparse.ArgumentParser(
-        description="Generate quantum benchmark datasets in PGC/MNIST-compatible .pkl format."
-    )
-    parser.add_argument('--dataset', choices=['grover', 'deutsch-jozsa', 'simon'],
-                        help='Which dataset to generate.')
-    parser.add_argument('--n_bits', type=int, help='Number of bits (input size).')
-    parser.add_argument('--pos_ratio', type=float, default=0.5,
-                        help='Grover: Fraction of positive samples to keep (default: 0.5).')
-    parser.add_argument('--n_funcs', type=int, default=1024,
-                        help="Deutsch–Jozsa: Number of functions (default: 1024).")
-    parser.add_argument('--n_pairs', type=int, default=4096,
-                        help="Simon: Number of input-output pairs (default: 4096).")
-    parser.add_argument('--output', type=str, help='Output .pkl filename.')
-    parser.add_argument('--seed', type=int, default=None, help='Random seed.')
-
-    args = parser.parse_args()
-
-    if not args.dataset:
-        _demo()
-        sys.exit(0)
-    if not args.n_bits or not args.output:
-        print("--n_bits and --output are required for dataset generation.", file=sys.stderr)
-        sys.exit(1)
 
     if args.dataset == 'grover':
         X, y, key = grover_dataset(args.n_bits, args.pos_ratio, rng)
+        if args.n_samples is not None and args.n_samples < len(X):
+            replace = args.n_samples > len(X)
+            if replace:
+                print(f"[WARN] Requested n_samples ({args.n_samples}) > dataset size ({len(X)}); sampling with replacement.")
+            idx = rng.choice(len(X), size=args.n_samples, replace=replace)
+            X = X[idx]
+            y = y[idx]
         save_dataset(X, y, args.output)
         print(f"Grover dataset saved to {args.output}. Marked key: {key}")
 
     elif args.dataset == 'deutsch-jozsa':
         X, y = deutsch_jozsa_dataset(args.n_bits, args.n_funcs, rng)
+        if args.n_samples is not None and args.n_samples < len(X):
+            replace = args.n_samples > len(X)
+            if replace:
+                print(f"[WARN] Requested n_samples ({args.n_samples}) > dataset size ({len(X)}); sampling with replacement.")
+            idx = rng.choice(len(X), size=args.n_samples, replace=replace)
+            X = X[idx]
+            y = y[idx]
         save_dataset(X, y, args.output)
         print(f"Deutsch–Jozsa dataset saved to {args.output}.")
 
     elif args.dataset == 'simon':
         X, y, mask = simon_dataset(args.n_bits, args.n_pairs, rng)
+        if args.n_samples is not None and args.n_samples < len(X):
+            replace = args.n_samples > len(X)
+            if replace:
+                print(f"[WARN] Requested n_samples ({args.n_samples}) > dataset size ({len(X)}); sampling with replacement.")
+            idx = rng.choice(len(X), size=args.n_samples, replace=replace)
+            X = X[idx]
+            y = y[idx]
         save_dataset(X, y, args.output)
         print(f"Simon dataset saved to {args.output}. Hidden mask: {mask}")
