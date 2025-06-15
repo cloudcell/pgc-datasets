@@ -17,9 +17,9 @@ sys.path.append(os.path.abspath(os.path.dirname(__file__)))
 from pgc_data_lib.metadata import create_metadata, validate_classification_labels, save_dataset_with_metadata
 
 # Parse command line arguments
-parser = argparse.ArgumentParser(description='Process USPTO chemistry data with unigram or bigram encoding')
-parser.add_argument('--mode', type=str, choices=['unigram', 'bigram'], required=True,
-                    help='Mode for encoding: unigram (single characters) or bigram (character pairs)')
+parser = argparse.ArgumentParser(description='Process USPTO chemistry data with unigram, bigram, or trigram encoding')
+parser.add_argument('--mode', required=True, choices=['unigram','bigram','trigram'],
+                    help="Mode for encoding: unigram (single characters), bigram (character pairs), or trigram (triplets)")
 args = parser.parse_args()
 
 # File paths
@@ -127,7 +127,7 @@ def generate_samples(input_path, mode='unigram', context_len=MAX_FORMULA_LENGTH)
                 features.append(feature_bits)
                 labels.append(ord(label))
                 label_chars.append(label)
-            else:
+            elif mode == 'bigram':
                 # Bigram mode: predict next character pair using combined ASCII values
                 for i in range(len(seq) - 1):
                     feature = curr
@@ -146,16 +146,34 @@ def generate_samples(input_path, mode='unigram', context_len=MAX_FORMULA_LENGTH)
                     curr = curr[1:] + seq[i]
                 
                 # Handle the last character + null
-                if seq:
+                bigram = seq[-1] + '\0'  # Last char + null
+                
+                feature_bits = np.concatenate([char_to_binary(c) for c in feature])
+                features.append(feature_bits)
+                
+                label_val = ord(bigram[0]) * 256 + ord(bigram[1])
+                labels.append(label_val)
+                label_chars.append(bigram)
+            elif mode == 'trigram':
+                # Trigram mode: predict next character triplet using combined ASCII values
+                for i in range(len(seq)):
                     feature = curr
-                    bigram = seq[-1] + '\0'  # Last char + null
-                    
+                    # Always get 3 chars, pad with nulls if needed
+                    if i+2 < len(seq):
+                        trigram = seq[i:i+3]
+                    elif i+1 < len(seq):
+                        trigram = seq[i:i+2] + '\0'
+                    else:
+                        trigram = seq[i] + '\0\0'
+                    # Convert feature to bit representation
                     feature_bits = np.concatenate([char_to_binary(c) for c in feature])
                     features.append(feature_bits)
-                    
-                    label_val = ord(bigram[0]) * 256 + ord(bigram[1])
+                    # Store combined ASCII value as label
+                    label_val = (ord(trigram[0]) << 16) + (ord(trigram[1]) << 8) + ord(trigram[2])
                     labels.append(label_val)
-                    label_chars.append(bigram)
+                    label_chars.append(trigram)
+                    # Shift context window
+                    curr = curr[1:] + seq[i]
     
     # Convert to numpy arrays and then to torch tensors
     if features:
@@ -180,12 +198,21 @@ features_tensor, labels_tensor, label_chars = generate_samples(
 )
 
 # Create metadata using the library function
+if args.mode == 'unigram':
+    num_classes = 256
+elif args.mode == 'bigram':
+    num_classes = 256 ** 2
+elif args.mode == 'trigram':
+    num_classes = 256 ** 3
+else:
+    num_classes = None
 metadata = create_metadata(
     features=features_tensor,
     labels=labels_tensor,
     dataset_name=f"chem-uspto2023-small-{args.mode}",
     task_type="classification",
-    feature_dim=(features_tensor.shape[1],)
+    feature_dim=(features_tensor.shape[1],),
+    num_classes=num_classes
 )
 
 # Define output filename in current directory
