@@ -56,21 +56,38 @@ def process_text_file(file_path, num_features, feature_type, prepend_nulls=True,
         prepend_nulls: Whether to prepend null characters the size of num_features/8
         append_nulls: Whether to append null characters the size of num_features/8
     """
-    with open(file_path, 'r', encoding='utf-8', errors='replace') as f:
+    # use binary encoding
+    with open(file_path, 'rb') as f:
         text = f.read()
 
     binary_data = []
     ascii_chars = []
     window_size = num_features
-    char_group = 1 if feature_type == 'unigram' else (2 if feature_type == 'bigram' else 3)
-
-    # Prepend null chars if needed
+    if feature_type == 'unigram':
+        char_group = 1
+    elif feature_type == 'bigram':
+        char_group = 2
+    elif feature_type == 'trigram':
+        char_group = 3
+    else:
+        raise ValueError("feature_type must be 'unigram', 'bigram', or 'trigram'")
+    
+    # Prepend null chars if needed at the beginning of the text
     if prepend_nulls:
         null_chars_count = window_size // 8
         print(f"Prepending {null_chars_count} null characters...")
         for _ in range(null_chars_count):
             binary_data.extend(char_to_binary('\0'))
             ascii_chars.append('\0')
+
+
+    print("Converting characters to binary...")
+    for char in tqdm(text, desc="Processing characters"):
+        c = chr(char)
+        binary_data.extend(char_to_binary(c))
+        ascii_chars.append(c)
+
+
 
     # append null characters to the end of the text depending on feature_type
     if append_nulls:
@@ -89,11 +106,6 @@ def process_text_file(file_path, num_features, feature_type, prepend_nulls=True,
             ascii_chars.append('\0')
             ascii_chars.append('\0')  # append three null characters
     
-
-    print("Converting characters to binary...")
-    for char in tqdm(text, desc="Processing characters"):
-        binary_data.extend(char_to_binary(char))
-        ascii_chars.append(char)
 
     features = []
     labels = []
