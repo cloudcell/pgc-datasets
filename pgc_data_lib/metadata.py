@@ -10,7 +10,7 @@ DATASET_FORMAT_VERSION = "2025-06-15-1434"
 # assert DATASET_FORMAT_VERSION is a string of length 15
 assert len(DATASET_FORMAT_VERSION) == 15, "DATASET_FORMAT_VERSION must be a string of length 15"
 
-def create_metadata(features, labels, dataset_name, task_type='classification', feature_dim=None, dataset_format_version=DATASET_FORMAT_VERSION):
+def create_metadata(features, labels, dataset_name, task_type='classification', feature_dim=None, dataset_format_version=DATASET_FORMAT_VERSION, num_classes=None):
     """
     Create metadata dictionary for a dataset.
     
@@ -56,8 +56,12 @@ def create_metadata(features, labels, dataset_name, task_type='classification', 
     
     # Add task-specific metadata
     if task_type == 'classification':
+        if num_classes is not None:
+            n_classes = num_classes
+        else:
+            n_classes = len(torch.unique(labels))
         metadata.update({
-            'num_classes': len(torch.unique(labels)),
+            'num_classes': n_classes,
             'min_label': int(torch.min(labels).item()),
             'max_label': int(torch.max(labels).item()),
         })

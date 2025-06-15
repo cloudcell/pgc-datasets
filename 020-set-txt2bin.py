@@ -133,7 +133,15 @@ def main():
 
         # Prepare metadata using the library
         dataset_name = f"txt2bin-{args.class_type}-{args.num_features}"
-        metadata = create_metadata(dataset.features, dataset.labels, dataset_name=dataset_name, task_type="classification", feature_dim=(args.num_features,))
+        if args.class_type == 'unigram':
+            num_classes = 256
+        elif args.class_type == 'bigram':
+            num_classes = 256 ** 2
+        elif args.class_type == 'trigram':
+            num_classes = 256 ** 3
+        else:
+            num_classes = None
+        metadata = create_metadata(dataset.features, dataset.labels, dataset_name=dataset_name, task_type="classification", feature_dim=(args.num_features,), num_classes=num_classes)
 
         # Save dataset with metadata using the library
         save_dataset_with_metadata(args.output_file, dataset.features, dataset.labels, metadata)
