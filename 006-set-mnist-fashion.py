@@ -2,6 +2,12 @@ import tensorflow_datasets as tfds
 import numpy as np
 import pickle
 import torch
+import sys
+import os
+
+# Add parent directory to path to import pgc_data_lib
+sys.path.append(os.path.abspath(os.path.dirname(__file__)))
+from pgc_data_lib.metadata import create_metadata, validate_classification_labels, save_dataset_with_metadata
 
 # Load Fashion MNIST dataset
 (train_ds, test_ds), ds_info = tfds.load(
@@ -31,8 +37,19 @@ features = features.reshape(features.shape[0], -1)  # shape: (num_samples, 784)
 features = torch.from_numpy(features)
 labels = torch.from_numpy(labels)
 
-# Save as pickle file compatible with dataset_viewer.py
-with open('mnist-fashion.pkl', 'wb') as f:
-    pickle.dump({'features': features, 'labels': labels}, f)
+# Create metadata using the library function
+metadata = create_metadata(
+    features=features,
+    labels=labels,
+    dataset_name='mnist-fashion',
+    task_type='classification',
+    feature_dim=(28, 28)  # Original image dimensions
+)
 
-print('Saved mnist-fashion.pkl with', features.shape[0], 'samples.')
+# Validate label consistency
+validate_classification_labels(metadata)
+
+base_filename = '006-mnist-fashion.pkl'
+
+# Save dataset with metadata
+save_dataset_with_metadata(base_filename, features, labels, metadata)
