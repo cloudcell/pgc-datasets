@@ -63,12 +63,12 @@ def process_text_file(file_path, num_features, feature_type, prepend_nulls=True)
 
     features = []
     labels = []
-    # Sliding window by char_group*8 bits each time
-    if len(binary_data) >= window_size + char_group*8:
-        total_windows = (len(binary_data) - window_size) // (char_group*8)
+    # Always slide by 1 character (8 bits)
+    if len(binary_data) >= window_size + 8:
+        total_windows = (len(binary_data) - window_size) // 8
         print("\nCreating sliding windows...")
         for i in tqdm(range(total_windows), desc="Creating samples"):
-            window_start = i * char_group * 8
+            window_start = i * 8
             window = binary_data[window_start:window_start + window_size]
             next_char_idx = (window_start + window_size) // 8
             # Label: next char(s) after the window
@@ -126,13 +126,13 @@ def main():
             input_file = args.input_file
 
         # Process the text file
-        features, labels = process_text_file(input_file, args.num_features, args.feature, prepend_nulls=not args.no_prepend)
+        features, labels = process_text_file(input_file, args.num_features, args.class_type, prepend_nulls=not args.no_prepend)
 
         # Create the dataset
         dataset = TextBinaryDataset(features, labels)
 
         # Prepare metadata using the library
-        dataset_name = f"txt2bin-{args.feature}-{args.num_features}"
+        dataset_name = f"txt2bin-{args.class_type}-{args.num_features}"
         metadata = create_metadata(dataset.features, dataset.labels, dataset_name=dataset_name, task_type="classification", feature_dim=(args.num_features,))
 
         # Save dataset with metadata using the library
