@@ -190,10 +190,19 @@ def main():
             num_classes = None
         metadata = create_metadata(dataset.features, dataset.labels, dataset_name=dataset_name, task_type="classification", feature_dim=(args.num_features,), num_classes=num_classes)
 
-        # Save dataset with metadata using the library
-        save_dataset_with_metadata(args.output_file, dataset.features, dataset.labels, metadata)
+        final_output_path = args.output_file
+        if args.output_file != '-':
+            output_dir = os.path.dirname(args.output_file)
+            original_basename = os.path.basename(args.output_file) # e.g. LICENSE.pkl
+            name_part, ext_part = os.path.splitext(original_basename) # name_part=LICENSE, ext_part=.pkl
+            # Construct the base name for save_dataset_with_metadata, e.g., "LICENSE_bigram"
+            modified_base_for_saving = f"{name_part}_{args.class_type}" 
+            final_output_path = os.path.join(output_dir, modified_base_for_saving)
 
-        print(f"Dataset created with {len(dataset)} samples")
+        # Save dataset with metadata using the library
+        save_dataset_with_metadata(final_output_path, dataset.features, dataset.labels, metadata)
+
+        print(f"Dataset created with {len(dataset)} samples and saved to {final_output_path}")
 
         # Clean up temporary file if it was created
         if args.input_file == '-':
