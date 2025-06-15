@@ -4,6 +4,21 @@
 # Date: 2025-04-20
 # LICENSE: AGPL v3
 
+"""
+This script converts a text file to a binary dataset with sliding windows.
+It supports unigram, bigram, and trigram encoding.
+
+Usage:
+    python txt2bin.py <input_file> <output_file> --num_features <num_features> --class_type <class_type> [--no-prepend]
+
+    input_file: Path to the text file to process
+    output_file: Path to the output binary file
+    num_features: Number of binary features per sample (must be divisible by 8)
+    class_type: 'unigram', 'bigram', or 'trigram'
+    --no-prepend: Do not prepend null characters (default: prepend)
+    --no-append: Do not append null characters (default: append)
+
+"""
 
 import os
 import torch
@@ -32,13 +47,14 @@ def char_to_binary(char):
     val = ord(char)
     return [int(b) for b in format(val, '08b')]
 
-def process_text_file(file_path, num_features, feature_type, prepend_nulls=True):
+def process_text_file(file_path, num_features, feature_type, prepend_nulls=True, append_nulls=True):
     """Process text file and convert to binary sequences with sliding windows.
     Args:
         file_path: Path to the text file to process
         num_features: Number of binary features per sample (must be divisible by 8)
         feature_type: 'unigram', 'bigram', or 'trigram'
         prepend_nulls: Whether to prepend null characters the size of num_features/8
+        append_nulls: Whether to append null characters the size of num_features/8
     """
     with open(file_path, 'r', encoding='utf-8', errors='replace') as f:
         text = f.read()
@@ -55,6 +71,19 @@ def process_text_file(file_path, num_features, feature_type, prepend_nulls=True)
         for _ in range(null_chars_count):
             binary_data.extend(char_to_binary('\0'))
             ascii_chars.append('\0')
+
+    # append null characters to the end of the text depending on feature_type
+    if append_nulls:
+        if feature_type == 'unigram':
+            binary_data.extend(char_to_binary('\0'))
+            ascii_chars.append('\0')  # a file must end with null character
+        elif feature_type == 'bigram':
+            binary_data.extend(char_to_binary('\0\0'))
+            ascii_chars.append('\0\0')  # a file must end with null character
+        elif feature_type == 'trigram':
+            binary_data.extend(char_to_binary('\0\0\0'))
+            ascii_chars.append('\0\0\0')  # a file must end with null character
+    
 
     print("Converting characters to binary...")
     for char in tqdm(text, desc="Processing characters"):
@@ -104,6 +133,7 @@ def main():
         parser.add_argument('--num_features', type=int, required=True, help='Number of binary features (must be divisible by 8, e.g. 784)')
         parser.add_argument('--class_type', required=True, choices=['unigram', 'bigram', 'trigram'], help="Class type: 'unigram', 'bigram', or 'trigram'")
         parser.add_argument('--no-prepend', action='store_true', help='Do not prepend null characters (default: prepend)')
+        parser.add_argument('--no-append', action='store_true', help='Do not append null characters (default: append)')
         args = parser.parse_args()
 
         # Validate num_features
@@ -126,7 +156,7 @@ def main():
             input_file = args.input_file
 
         # Process the text file
-        features, labels = process_text_file(input_file, args.num_features, args.class_type, prepend_nulls=not args.no_prepend)
+        features, labels = process_text_file(input_file, args.num_features, args.class_type, prepend_nulls=not args.no_prepend, append_nulls=not args.no_append)
 
         # Create the dataset
         dataset = TextBinaryDataset(features, labels)

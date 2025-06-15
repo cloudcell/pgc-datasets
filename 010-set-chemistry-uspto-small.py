@@ -5,6 +5,7 @@ import argparse
 from tqdm import tqdm
 import torch
 import numpy as np
+from pgc_data_lib.chem2augmented import generate_random_reaction_smiles
 
 
 MAX_FORMULA_LENGTH_FOR_PREFILTERING = 95
@@ -20,6 +21,9 @@ from pgc_data_lib.metadata import create_metadata, validate_classification_label
 parser = argparse.ArgumentParser(description='Process USPTO chemistry data with unigram, bigram, or trigram encoding')
 parser.add_argument('--mode', required=True, choices=['unigram','bigram','trigram'],
                     help="Mode for encoding: unigram (single characters), bigram (character pairs), or trigram (triplets)")
+# augment reaction smiles by specified number of attempts
+parser.add_argument('--augment', type=int, default=0, help='Number of attempts to augment reaction smiles by randomising their representation')
+                    
 args = parser.parse_args()
 
 # File paths
@@ -86,99 +90,109 @@ def generate_samples(input_path, mode='unigram', context_len=MAX_FORMULA_LENGTH)
         total_lines = sum(1 for _ in f)
         
     with open(input_path, 'r', encoding='utf-8') as f:
+
         for line in tqdm(f, total=total_lines, desc="Generating samples"):
-            line = line.rstrip('\n')
-            # Find the position after the second '>'
-            idx1 = line.find('>')
-            idx2 = line.find('>', idx1 + 1) if idx1 != -1 else -1
-            if idx2 == -1:
-                continue  # Skip lines without two '>'
+            line_raw = line.rstrip('\n')
+            if args.augment > 0:
+                augmented_smiles_dict = generate_random_reaction_smiles(line_raw, max_attempts=args.augment, random_state=42)
+                augmented_smiles_list = list(augmented_smiles_dict.values())
+            else:
+                augmented_smiles_list = [line_raw]
+
+            for i in range(len(augmented_smiles_list)):
+                line = augmented_smiles_list[i]
+
+                # Find the position after the second '>'
+                idx1 = line.find('>')
+                idx2 = line.find('>', idx1 + 1) if idx1 != -1 else -1
+                if idx2 == -1:
+                    continue  # Skip lines without two '>'
+                    
+                stub = line[:idx2+1]
+                seq = line[idx2+1:].strip()
+
+                # add end of formula character for unigram, bigram, and trigram
+                if mode == 'unigram':
+                    seq += ';'
+                elif mode == 'bigram':
+                    seq += ';\0'
+                elif mode == 'trigram':
+                    seq += ';\0\0'
+
                 
-            stub = line[:idx2+1]
-            seq = line[idx2+1:].strip()
-
-            # add end of formula character for unigram, bigram, and trigram
-            if mode == 'unigram':
-                seq += ';'
-            elif mode == 'bigram':
-                seq += ';\0'
-            elif mode == 'trigram':
-                seq += ';\0\0'
-
-            
-            # Pad with null characters on the left instead of the right
-            stub_padded = stub.rjust(context_len, '\0')
-            if len(stub_padded) > context_len:
-                stub_padded = stub_padded[-context_len:]  # Take last context_len chars if too long
+                # Pad with null characters on the left instead of the right
+                stub_padded = stub.rjust(context_len, '\0')
+                if len(stub_padded) > context_len:
+                    stub_padded = stub_padded[-context_len:]  # Take last context_len chars if too long
+                    
+                curr = stub_padded
                 
-            curr = stub_padded
-            
-            if mode == 'unigram':
-                # Unigram mode: predict next character using ASCII values
-                for i, ch in enumerate(seq):
-                    feature = curr
-                    
-                    # Convert feature to bit representation
-                    feature_bits = np.concatenate([char_to_binary(c) for c in feature])
-                    features.append(feature_bits)
-                    
-                    # Store raw ASCII value as label
-                    labels.append(ord(ch))
-                    label_chars.append(ch)
-                    
-                    # Shift context window
-                    curr = curr[1:] + ch
+                if mode == 'unigram':
+                    # Unigram mode: predict next character using ASCII values
+                    for i, ch in enumerate(seq):
+                        feature = curr
+                        
+                        # Convert feature to bit representation
+                        feature_bits = np.concatenate([char_to_binary(c) for c in feature])
+                        features.append(feature_bits)
+                        
+                        # Store raw ASCII value as label
+                        labels.append(ord(ch))
+                        label_chars.append(ch)
+                        
+                        # Shift context window
+                        curr = curr[1:] + ch
 
-                    # if the last character of the curr is end of formula character, then break
-                    if curr[-1] == ';':
-                        break
-                
-            elif mode == 'bigram':
-                # Bigram mode: predict next character pair using combined ASCII values
-                for i in range(len(seq) - 1):
-                    feature = curr
-                    bigram = seq[i:i+2]  # Two characters
+                        # if the last character of the curr is end of formula character, then break
+                        if curr[-1] == ';':
+                            break
                     
-                    # Convert feature to bit representation
-                    feature_bits = np.concatenate([char_to_binary(c) for c in feature])
-                    features.append(feature_bits)
-                    
-                    # Store combined ASCII value as label (first char * 256 + second char)
-                    label_val = ord(bigram[0]) * 256 + ord(bigram[1])
-                    labels.append(label_val)
-                    label_chars.append(bigram)
-                    
-                    # Shift context window
-                    curr = curr[1:] + seq[i]
+                elif mode == 'bigram':
+                    # Bigram mode: predict next character pair using combined ASCII values
+                    for i in range(len(seq) - 1):
+                        feature = curr
+                        bigram = seq[i:i+2]  # Two characters
+                        
+                        # Convert feature to bit representation
+                        feature_bits = np.concatenate([char_to_binary(c) for c in feature])
+                        features.append(feature_bits)
+                        
+                        # Store combined ASCII value as label (first char * 256 + second char)
+                        label_val = ord(bigram[0]) * 256 + ord(bigram[1])
+                        labels.append(label_val)
+                        label_chars.append(bigram)
+                        
+                        # Shift context window
+                        curr = curr[1:] + seq[i]
 
-                    # if the last character of the curr is end of formula character, then break
-                    if curr[-1] == ';':
-                        break
-                
-            elif mode == 'trigram':
-                # Trigram mode: predict next character triplet using combined ASCII values
-                for i in range(len(seq)):
-                    feature = curr
-                    # Always get 3 chars, pad with nulls if needed
-                    if i+2 < len(seq):
-                        trigram = seq[i:i+3]
-                    elif i+1 < len(seq):
-                        trigram = seq[i:i+2] + '\0'
-                    else:
-                        trigram = seq[i] + '\0\0'
-                    # Convert feature to bit representation
-                    feature_bits = np.concatenate([char_to_binary(c) for c in feature])
-                    features.append(feature_bits)
-                    # Store combined ASCII value as label
-                    label_val = (ord(trigram[0]) << 16) + (ord(trigram[1]) << 8) + ord(trigram[2])
-                    labels.append(label_val)
-                    label_chars.append(trigram)
-                    # Shift context window
-                    curr = curr[1:] + seq[i]
+                        # if the last character of the curr is end of formula character, then break
+                        if curr[-1] == ';':
+                            break
+                    
+                elif mode == 'trigram':
+                    # Trigram mode: predict next character triplet using combined ASCII values
+                    for i in range(len(seq)):
+                        feature = curr
+                        # Always get 3 chars, pad with nulls if needed
+                        if i+2 < len(seq):
+                            trigram = seq[i:i+3]
+                        elif i+1 < len(seq):
+                            trigram = seq[i:i+2] + '\0'
+                        else:
+                            trigram = seq[i] + '\0\0'
+                        # Convert feature to bit representation
+                        feature_bits = np.concatenate([char_to_binary(c) for c in feature])
+                        features.append(feature_bits)
+                        # Store combined ASCII value as label
+                        label_val = (ord(trigram[0]) << 16) + (ord(trigram[1]) << 8) + ord(trigram[2])
+                        labels.append(label_val)
+                        label_chars.append(trigram)
+                        # Shift context window
+                        curr = curr[1:] + seq[i]
 
-                    # if the last character of the curr is end of formula character, then break
-                    if curr[-1] == ';':
-                        break
+                        # if the last character of the curr is end of formula character, then break
+                        if curr[-1] == ';':
+                            break
     
     # Convert to numpy arrays and then to torch tensors
     if features:
