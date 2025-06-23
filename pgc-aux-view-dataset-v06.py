@@ -60,11 +60,13 @@ class LoadingDialog:
         logo_row.columnconfigure(1, weight=1)
         self.logo_label = ttk.Label(logo_row)
         self.logo_label.grid(row=0, column=0, padx=(0, 10), sticky="w")
+        # Initialize animation job ID
+        self.animation_job = None
         def animate_logo():
             if self.logos[self.logo_idx]:
                 self.logo_label.config(image=self.logos[self.logo_idx])
             self.logo_idx = (self.logo_idx + 1) % len(self.logos)
-            self.top.after(40, animate_logo)
+            self.animation_job = self.top.after(40, animate_logo)
         animate_logo()
         self.progress = ttk.Progressbar(logo_row, mode='indeterminate', length=120)
         self.progress.grid(row=0, column=1, sticky="ew")
@@ -78,6 +80,10 @@ class LoadingDialog:
         self.top.unbind("<Map>")
 
     def destroy(self):
+        # Cancel animation job if it exists
+        if hasattr(self, 'animation_job') and self.animation_job is not None:
+            self.top.after_cancel(self.animation_job)
+            self.animation_job = None
         self.top.destroy()
 
 class DatasetSelector:
