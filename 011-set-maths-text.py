@@ -15,6 +15,8 @@ import argparse
 LEARNING_CONTEXT = 16
 TOTAL_LINE_LENGTH = 32
 
+PADDING_CHAR = '\0'
+
 CUT_LINE_AT_SEMICOLON = True
 
 def generate_arithmetic_dataset(operations_to_include=None, max_digits=3, sample_limits=None):
@@ -102,7 +104,7 @@ def generate_arithmetic_dataset(operations_to_include=None, max_digits=3, sample
                         # Calculate padding needed to position the "=" at the LEARNING_CONTEXT character
                         padding_length = LEARNING_CONTEXT - len(expression) - 1
                         # Create the line with the equals sign at the right position
-                        line = " " * padding_length + expression + "=" + str(c) + ";"
+                        line = PADDING_CHAR * padding_length + expression + "=" + str(c) + ";"
                         if CUT_LINE_AT_SEMICOLON:
                             line = line[:TOTAL_LINE_LENGTH]
                         else:

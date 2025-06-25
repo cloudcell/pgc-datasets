@@ -117,7 +117,7 @@ def main():
     
     # Create metadata
     feature_dim = (WINDOW_SIZE * 8,)  # 8 bits per character
-    num_classes = 128  # ASCII values 0-127
+    num_classes = 256  # ASCII values 0-127
     
     # Create metadata using the library function
     metadata = create_metadata(

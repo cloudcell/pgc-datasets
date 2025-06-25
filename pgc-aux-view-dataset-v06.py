@@ -1141,32 +1141,46 @@ Max Label Value: {label_max}
         # Update features text display: show all bytes as characters, non-printable as · (dot), highlight in yellow
         self.features_text.config(state=tk.NORMAL)
         self.features_text.delete(1.0, tk.END)
-        feature_bytes = None
+        
+        # Get raw bytes from features using the same approach as the hex viewer
         try:
-            if feature_values.max() <= 1.0:
-                arr = (feature_values * 255).astype(np.uint8)
+            # If binary, use bytes_data from above; else, try to convert feature_values to bytes
+            if 'bytes_data' in locals() and bytes_data:
+                raw_bytes = bytes(bytes_data)
             else:
-                arr = feature_values.astype(np.uint8)
-            feature_bytes = arr.tolist()
-        except Exception:
-            feature_bytes = []
-        display_chars = []
-        nonprintable_indices = []
-        for idx, b in enumerate(feature_bytes):
-            if 32 <= b < 127:
-                display_chars.append(chr(b))
-            else:
-                display_chars.append('·')
-                nonprintable_indices.append(idx)
-        display_str = ''.join(display_chars)
-        self.features_text.insert(tk.END, display_str)
-        # Highlight non-printable characters in yellow
+                # Try to scale or cast to bytes
+                if feature_values.max() <= 1.0:
+                    arr = (feature_values * 255).astype(np.uint8)
+                else:
+                    arr = feature_values.astype(np.uint8)
+                raw_bytes = bytes(arr)
+                
+            # Display raw bytes as text, similar to hex viewer but in a more compact format
+            for line_no, offset in enumerate(range(0, len(raw_bytes), 32), start=1):
+                chunk = raw_bytes[offset:offset+32]
+                
+                # ASCII representation
+                ascii_bytes = ''
+                for b in chunk:
+                    ascii_bytes += chr(b) if 32 <= b < 127 else '·'
+                
+                # Add line to text widget
+                line = f"{ascii_bytes}\n"
+                self.features_text.insert(tk.END, line)
+                
+                # Highlight nonprintable chars
+                for i, b in enumerate(chunk):
+                    if not (32 <= b < 127):
+                        tag_start = f"{line_no}.{i}"
+                        tag_end = f"{line_no}.{i + 1}"
+                        self.features_text.tag_add('nonprintable', tag_start, tag_end)
+                
+        except Exception as e:
+            self.features_text.insert(tk.END, f"Error displaying features: {str(e)}")
+        
+        # Configure tags
         self.features_text.tag_delete('nonprintable')
         self.features_text.tag_configure('nonprintable', background='yellow')
-        for idx in nonprintable_indices:
-            start = f"1.{idx}"
-            end = f"1.{idx+1}"
-            self.features_text.tag_add('nonprintable', start, end)
         self.features_text.config(state=tk.DISABLED)
 
 
