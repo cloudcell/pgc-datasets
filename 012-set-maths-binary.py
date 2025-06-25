@@ -13,6 +13,7 @@ import numpy as np
 import pickle
 from tqdm import tqdm
 import glob
+import argparse
 
 # Constants
 WINDOW_SIZE = 16  # Size of the sliding window in characters
@@ -76,46 +77,44 @@ def process_text_file(file_path):
     return all_features, all_labels
 
 def main():
+    # arguments:
+    # input: path to the input text file
+    # output: path to the output binary file
+
+    parser = argparse.ArgumentParser(description='Convert text dataset to binary format with sliding windows.')
+    parser.add_argument('--input', type=str, required=True, help='Path to the input text file')
+    parser.add_argument('--output', type=str, required=True, help='Path to the output binary file')
+    
+    args = parser.parse_args()
+    
     # Input and output paths
-    input_dir = 'data/ARITHMETIC/maths'
-    output_dir = 'data/ARITHMETIC/binary'
+    input_file = args.input
+    output_file = args.output
     
-    # Create output directory if it doesn't exist
-    os.makedirs(output_dir, exist_ok=True)
-    
-    # Find all text files in the input directory
-    input_files = glob.glob(os.path.join(input_dir, '*.txt'))
-    
-    if not input_files:
-        print(f"No text files found in {input_dir}")
+    if not input_file:
+        print(f"No text files found in {input_file}")
         return
     
-    # Process each file
-    for input_file in input_files:
-        file_basename = os.path.basename(input_file)
-        file_name = os.path.splitext(file_basename)[0]
+    # Process the text file
+    features, labels = process_text_file(input_file)
         
-        # Process the text file
-        features, labels = process_text_file(input_file)
+    if not features:
+        print(f"No valid samples generated from {input_file}")
+        return
         
-        if not features:
-            print(f"No valid samples generated from {file_basename}")
-            continue
+    # Create the dataset
+    dataset = ArithmeticBinaryDataset(features, labels)
         
-        # Create the dataset
-        dataset = ArithmeticBinaryDataset(features, labels)
+    # Save the dataset
+    with open(output_file, 'wb') as f:
+        pickle.dump({'features': dataset.features, 'labels': dataset.labels}, f)
         
-        # Save the dataset
-        output_path = os.path.join(output_dir, f'{file_name}_binary.pkl')
-        with open(output_path, 'wb') as f:
-            pickle.dump({'features': dataset.features, 'labels': dataset.labels}, f)
-        
-        print(f"Dataset created for {file_basename} with {len(dataset)} samples")
-        print(f"Sample entry:")
-        print(f"Features shape: {dataset.features[0].shape}")
-        print(f"Label (ASCII value): {dataset.labels[0].item()}")
-        print(f"Label as character: {chr(dataset.labels[0].item())}")
-        print("-" * 50)
+    print(f"Dataset created for {input_file} with {len(dataset)} samples")
+    print(f"Sample entry:")
+    print(f"Features shape: {dataset.features[0].shape}")
+    print(f"Label (ASCII value): {dataset.labels[0].item()}")
+    print(f"Label as character: {chr(dataset.labels[0].item())}")
+    print("-" * 50)
     
     print("All datasets processed successfully!")
 

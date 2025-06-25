@@ -138,44 +138,27 @@ def split_and_save_dataset(all_lines, output_dir):
     
     # Calculate split indices
     total_lines = len(all_lines)
-    train_size = int(total_lines * 0.85)
-    val_size = int(total_lines * 0.10)
-    
-    # Split the dataset
-    # train_lines = all_lines[:train_size]
-    train_lines = all_lines  # the model is not really generalising, so we have to feed it all the data
-    val_lines = all_lines[train_size:train_size + val_size]
-    test_lines = all_lines[train_size + val_size:]
     
     # Save the files
-    train_file = os.path.join(output_dir, "arithmetic_train.txt")
-    val_file = os.path.join(output_dir, "arithmetic_val.txt")
-    test_file = os.path.join(output_dir, "arithmetic_test.txt")
+    dataset_file = os.path.join(output_dir, "arithmetic_dataset.txt")
     
     # Delete old files if they exist
-    for file_path in [train_file, val_file, test_file]:
+    for file_path in [dataset_file]:
         if os.path.exists(file_path):
             os.remove(file_path)
     
     # Write the files
-    with open(train_file, 'w') as f:
-        f.write('\n'.join(train_lines))
+    with open(dataset_file, 'w') as f:
+        f.write('\n'.join(all_lines))
     
-    with open(val_file, 'w') as f:
-        f.write('\n'.join(val_lines))
-    
-    with open(test_file, 'w') as f:
-        f.write('\n'.join(test_lines))
-    
-    print(f"Dataset split into:")
-    print(f"  - Training: {len(train_lines)} examples ({len(train_lines)/total_lines:.1%}) saved to {train_file}")
-    print(f"  - Validation: {len(val_lines)} examples ({len(val_lines)/total_lines:.1%}) saved to {val_file}")
-    print(f"  - Testing: {len(test_lines)} examples ({len(test_lines)/total_lines:.1%}) saved to {test_file}")
+    print(f"Dataset saved to {dataset_file}")
 
 def main():
     # Define operations to include (can be modified via command line arguments)
     parser = argparse.ArgumentParser(description='Generate arithmetic dataset with custom parameters')
-    parser.add_argument('--operations', type=str, default='+,-,*', 
+    # help
+    parser.add_argument('--help', action='help', help='show this help message and exit')
+    parser.add_argument('--operations', type=str, required=True, 
                         help='Comma-separated list of operations to include (e.g., "+,-,*")')
     parser.add_argument('--max-digits', type=int, default=3,
                         help='Maximum number of digits for the numbers (default: 3)')
