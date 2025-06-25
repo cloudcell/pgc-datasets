@@ -154,26 +154,64 @@ def split_and_save_dataset(all_lines, output_dir):
     print(f"Dataset saved to {dataset_file}")
 
 def main():
-    # Define operations to include (can be modified via command line arguments)
-    parser = argparse.ArgumentParser(description='Generate arithmetic dataset with custom parameters')
-    # help
-    parser.add_argument('--help', action='help', help='show this help message and exit')
-    parser.add_argument('--operations', type=str, required=True, 
-                        help='Comma-separated list of operations to include (e.g., "+,-,*")')
-    parser.add_argument('--max-digits', type=int, default=3,
+    # Create a parser with a more descriptive help message
+    parser = argparse.ArgumentParser(
+        description='Arithmetic dataset generator with custom parameters',
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog='''
+Examples:
+  # Show this help message
+  python %(prog)s
+  
+  # Generate a dataset with all operations (addition, subtraction, multiplication)
+  python %(prog)s --generate
+  
+  # Generate a dataset with only addition and subtraction
+  python %(prog)s --generate --operations "+,-"
+  
+  # Generate a dataset with 2-digit numbers and custom output directory
+  python %(prog)s --generate --max-digits 2 --output-dir "my_data/arithmetic"
+  
+  # Generate a smaller dataset with custom limits
+  python %(prog)s --generate --digit-1-limit 50 --digit-2-limit 500
+'''
+    )
+    
+    # Required action group
+    action_group = parser.add_argument_group('Action (Required)')
+    action_group.add_argument('--generate', action='store_true',
+                        help='Generate the dataset (required to perform any generation)')
+    
+    # Group for operation configuration
+    op_group = parser.add_argument_group('Operation Configuration')
+    op_group.add_argument('--operations', type=str, default='+,-,*', 
+                        help='Comma-separated list of operations to include (default: "+,-,*")')
+    
+    # Group for dataset size configuration
+    size_group = parser.add_argument_group('Dataset Size Configuration')
+    size_group.add_argument('--max-digits', type=int, default=3,
                         help='Maximum number of digits for the numbers (default: 3)')
-    parser.add_argument('--digit-1-limit', type=int, default=10*10,
+    size_group.add_argument('--digit-1-limit', type=int, default=10*10,
                         help='Maximum number of examples for 1-digit numbers (default: 100)')
-    parser.add_argument('--digit-2-limit', type=int, default=100*100,
+    size_group.add_argument('--digit-2-limit', type=int, default=100*100,
                         help='Maximum number of examples for 2-digit numbers (default: 10000)')
-    parser.add_argument('--digit-3-limit', type=int, default=1000*1000,
+    size_group.add_argument('--digit-3-limit', type=int, default=1000*1000,
                         help='Maximum number of examples for 3-digit numbers (default: 1000000)')
-    parser.add_argument('--digit-4-limit', type=int, default=10000*10000,
+    size_group.add_argument('--digit-4-limit', type=int, default=10000*10000,
                         help='Maximum number of examples for 4-digit numbers (default: 100000000)')
-    parser.add_argument('--output-dir', type=str, default="data/ARITHMETIC/maths",
-                        help='Directory to save the dataset files')
+    
+    # Group for output configuration
+    output_group = parser.add_argument_group('Output Configuration')
+    output_group.add_argument('--output-dir', type=str, default=".",
+                        help='Directory to save the dataset files (default: ".")')
     
     args = parser.parse_args()
+    
+    # If generate flag is not provided, just show help and exit
+    if not args.generate:
+        parser.print_help()
+        print("\nNOTE: Use the --generate flag to generate the dataset.")
+        return
     
     # Parse operations from command line
     operations = [op.strip() for op in args.operations.split(',') if op.strip() in ['+', '-', '*']]
@@ -185,6 +223,13 @@ def main():
         3: args.digit_3_limit,
         4: args.digit_4_limit
     }
+    
+    print("Starting dataset generation with the following parameters:")
+    print(f"  Operations: {operations}")
+    print(f"  Max digits: {args.max_digits}")
+    print(f"  Output directory: {args.output_dir}")
+    print(f"  Sample limits: 1-digit: {args.digit_1_limit}, 2-digit: {args.digit_2_limit}, 3-digit: {args.digit_3_limit}")
+    print("\nGenerating dataset...")
     
     # Generate the dataset with specified parameters
     all_lines = generate_arithmetic_dataset(
@@ -198,6 +243,9 @@ def main():
     split_and_save_dataset(all_lines, output_dir)
     
     print("Dataset generation completed successfully!")
+    print(f"Output saved to: {output_dir}")
+    print(f"Total examples generated: {len(all_lines)}")
+
 
 if __name__ == "__main__":
     main()
