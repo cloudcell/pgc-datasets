@@ -1138,11 +1138,9 @@ Max Label Value: {label_max}
         except Exception as e:
             feature_text = f"Error converting to ASCII: {str(e)}"
         
-        # Update features text display using the same approach as the hex viewer
+        # Update features text display using the exact same approach as the hex viewer
         self.features_text.config(state=tk.NORMAL)
         self.features_text.delete(1.0, tk.END)
-        
-        # Configure tag for non-printable characters BEFORE inserting text
         self.features_text.tag_delete('nonprintable')
         self.features_text.tag_configure('nonprintable', background='yellow')
         
@@ -1159,25 +1157,25 @@ Max Label Value: {label_max}
                     arr = feature_values.astype(np.uint8)
                 raw_bytes = bytes(arr)
                 
-            # Display raw bytes as text, similar to hex viewer but in a more compact format
-            for line_no, offset in enumerate(range(0, len(raw_bytes), 32), start=1):
-                chunk = raw_bytes[offset:offset+32]
+            # Display raw bytes as text, exactly like the hex viewer but without the hex part
+            for line_no, offset in enumerate(range(0, len(raw_bytes), 16), start=1):
+                chunk = raw_bytes[offset:offset+16]
                 
-                # Insert characters one by one to properly tag non-printable ones
-                line_start_idx = self.features_text.index(tk.END)
+                # ASCII representation, pad with spaces for missing bytes
+                ascii_bytes = ''
+                for b in chunk:
+                    ascii_bytes += chr(b) if 32 <= b < 127 else '.'
                 
+                # Add line to text widget
+                line = f"{ascii_bytes}\n"
+                self.features_text.insert(tk.END, line)
+                
+                # Highlight nonprintable chars in ASCII column
                 for i, b in enumerate(chunk):
-                    if 32 <= b < 127:
-                        self.features_text.insert(tk.END, chr(b))
-                    else:
-                        # Insert dot for non-printable and immediately tag it
-                        pos_before = self.features_text.index(tk.END)
-                        self.features_text.insert(tk.END, '·')
-                        pos_after = self.features_text.index(tk.END)
-                        self.features_text.tag_add('nonprintable', pos_before, pos_after)
-                
-                # Add newline after each line
-                self.features_text.insert(tk.END, '\n')
+                    if not (32 <= b < 127):
+                        tag_start = f"{line_no}.{i}"
+                        tag_end = f"{line_no}.{i + 1}"
+                        self.features_text.tag_add('nonprintable', tag_start, tag_end)
                 
         except Exception as e:
             self.features_text.insert(tk.END, f"Error displaying features: {str(e)}")
