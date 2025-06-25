@@ -7,6 +7,7 @@ Each window predicts the next character in the sequence.
 """
 
 import os
+import sys
 import torch
 from torch.utils.data import Dataset
 import numpy as np
@@ -14,6 +15,10 @@ import pickle
 from tqdm import tqdm
 import glob
 import argparse
+
+# Add parent directory to path to import pgc_data_lib
+sys.path.append(os.path.abspath(os.path.dirname(__file__)))
+from pgc_data_lib.metadata import create_metadata, validate_classification_labels, save_dataset_with_metadata
 
 # Constants
 WINDOW_SIZE = 16  # Size of the sliding window in characters
@@ -80,16 +85,21 @@ def main():
     # arguments:
     # input: path to the input text file
     # output: path to the output binary file
+    # dataset_name: name of the dataset (default: maths-binary)
 
     parser = argparse.ArgumentParser(description='Convert text dataset to binary format with sliding windows.')
     parser.add_argument('--input', type=str, required=True, help='Path to the input text file')
-    parser.add_argument('--output', type=str, required=True, help='Path to the output binary file')
+    # parser.add_argument('--output', type=str, default='dataset_012-maths-binary.pkl', 
+    #                     help='Path to the output binary file (default: dataset_012-maths-binary.pkl)')
+    parser.add_argument('--dataset-name', type=str, default='maths-binary', 
+                        help='Name of the dataset (default: maths-binary)')
     
     args = parser.parse_args()
     
     # Input and output paths
     input_file = args.input
-    output_file = args.output
+    # output_file = args.output
+    dataset_name = args.dataset_name
     
     if not input_file:
         print(f"No text files found in {input_file}")
@@ -104,19 +114,42 @@ def main():
         
     # Create the dataset
     dataset = ArithmeticBinaryDataset(features, labels)
-        
-    # Save the dataset
-    with open(output_file, 'wb') as f:
-        pickle.dump({'features': dataset.features, 'labels': dataset.labels}, f)
-        
+    
+    # Create metadata
+    feature_dim = (WINDOW_SIZE * 8,)  # 8 bits per character
+    num_classes = 128  # ASCII values 0-127
+    
+    # Create metadata using the library function
+    metadata = create_metadata(
+        features=dataset.features,
+        labels=dataset.labels,
+        dataset_name=dataset_name,
+        task_type="classification",
+        feature_dim=feature_dim,
+        num_classes=num_classes
+    )
+    
+    # Validate classification labels
+    try:
+        validate_classification_labels(metadata)
+        print("Label validation passed.")
+    except AssertionError as e:
+        print(f"Warning: Label validation failed: {e}")
+    
+    # Save dataset with metadata
+    base_filename = 'dataset_012-maths-binary'
+    save_dataset_with_metadata(base_filename, dataset.features, dataset.labels, metadata)
+    
     print(f"Dataset created for {input_file} with {len(dataset)} samples")
     print(f"Sample entry:")
     print(f"Features shape: {dataset.features[0].shape}")
     print(f"Label (ASCII value): {dataset.labels[0].item()}")
     print(f"Label as character: {chr(dataset.labels[0].item())}")
+    print(f"Number of classes: {metadata['num_classes']}")
+    print(f"Min label: {metadata['min_label']}, Max label: {metadata['max_label']}")
     print("-" * 50)
     
-    print("All datasets processed successfully!")
+    print("Dataset processing completed successfully!")
 
 if __name__ == "__main__":
     main()

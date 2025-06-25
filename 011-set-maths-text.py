@@ -9,7 +9,6 @@ Each line is padded to a total length of 32 characters.
 The dataset is split into training (85%), validation (10%), and testing (5%) files.
 """
 
-import random
 import os
 import argparse
 
@@ -20,7 +19,7 @@ CUT_LINE_AT_SEMICOLON = True
 
 def generate_arithmetic_dataset(operations_to_include=None, max_digits=3, sample_limits=None):
     """
-    Generate a dataset of arithmetic problems with random numbers.
+    Generate a dataset of arithmetic problems with all possible number combinations in order.
     
     Args:
         operations_to_include (list, optional): List of operations to include ('+', '-', '*').
@@ -71,87 +70,87 @@ def generate_arithmetic_dataset(operations_to_include=None, max_digits=3, sample
         
         print(f"Generating up to {target_count} unique examples with {digits}-digit numbers (0 to {max_num})...")
         
-        attempts = 0
-        max_attempts = target_count * 100  # Increase from 10 to 100 to give more chances to find unique combinations
         start_count = len(unique_combinations)
         digit_target = target_count  # Store the target specifically for this digit range
+        generated_count = 0
         
-        while len(unique_combinations) - start_count < digit_target and attempts < max_attempts:
-            a = random.randint(0, max_num)
-            b = random.randint(0, max_num)
-            
-            # Randomly select an operation
-            op_symbol, op_func = random.choice(operations)
-            
-            # For subtraction, ensure a >= b to avoid negative results
-            if op_symbol == '-' and a < b:
-                a, b = b, a
+        # Iterate through all operations first
+        for op_symbol, op_func in operations:
+            # Then iterate through all possible values of a
+            for a in range(max_num + 1):
+                # Then iterate through all possible values of b
+                b_range = min(99, max_num) if op_symbol == '*' and digits > 2 else max_num
                 
-            # For multiplication with large numbers, use smaller b to avoid extremely large results
-            if op_symbol == '*' and digits > 2:
-                b = random.randint(0, min(99, max_num))  # Limit to 2-digit numbers for multiplication
+                for b in range(b_range + 1):
+                    # For subtraction, ensure a >= b to avoid negative results
+                    if op_symbol == '-' and a < b:
+                        continue
+                    
+                    # Calculate the result
+                    c = op_func(a, b)
+                    
+                    # Create a unique key for this combination
+                    combo_key = f"{a}{op_symbol}{b}"
+                    
+                    # Only add if this is a new combination and we haven't reached the target
+                    if combo_key not in unique_combinations and generated_count < digit_target:
+                        unique_combinations.add(combo_key)
+                        generated_count += 1
+                        
+                        # Format the line with proper padding
+                        expression = f"{a}{op_symbol}{b}"
+                        # Calculate padding needed to position the "=" at the LEARNING_CONTEXT character
+                        padding_length = LEARNING_CONTEXT - len(expression) - 1
+                        # Create the line with the equals sign at the right position
+                        line = " " * padding_length + expression + "=" + str(c) + ";"
+                        if CUT_LINE_AT_SEMICOLON:
+                            line = line[:TOTAL_LINE_LENGTH]
+                        else:
+                            line = line.ljust(TOTAL_LINE_LENGTH)
+                        all_lines.append(line)
+                    
+                    # If we've reached the target, break out of the innermost loop
+                    if generated_count >= digit_target:
+                        break
                 
-            # Calculate the result
-            c = op_func(a, b)
+                # If we've reached the target, break out of the middle loop
+                if generated_count >= digit_target:
+                    break
             
-            # Create a tuple to represent this combination
-            combination = (a, op_symbol, b, c)
-            
-            # Only add if this is a new combination
-            if combination not in unique_combinations:
-                unique_combinations.add(combination)
-                # Format the expression part (a op b)
-                expression = f"{a}{op_symbol}{b}"
-                # Calculate padding needed to position the "=" at the LEARNING_CONTEXT character
-                padding_length = LEARNING_CONTEXT - len(expression) - 1
-                # Create the line with the equals sign at the right position
-                line = " " * padding_length + expression + "=" + str(c) + ";"
-                if CUT_LINE_AT_SEMICOLON:
-                    line = line[:TOTAL_LINE_LENGTH]
-                else:
-                    line = line.ljust(TOTAL_LINE_LENGTH)
-                all_lines.append(line)
-            
-            attempts += 1
+            # If we've reached the target, break out of the outermost loop
+            if generated_count >= digit_target:
+                break
         
-        actual_generated = len(unique_combinations) - start_count
-        print(f"Generated {actual_generated} unique combinations with {digits}-digit numbers after {attempts} attempts")
+        actual_generated = generated_count
+        print(f"Generated {actual_generated} unique combinations with {digits}-digit numbers")
     
     total_generated = len(unique_combinations)
     print(f"Total dataset size: {total_generated} unique combinations")
     
     return all_lines
 
-def split_and_save_dataset(all_lines, output_dir):
+def split_and_save_dataset(all_lines, output_file):
     """
-    Split the dataset into training, validation, and testing files.
+    Save the dataset to a file.
     
     Args:
         all_lines (list): All generated lines
-        output_dir (str): Directory to save the files
+        output_file (str): Path to the output file
     """
     # Create output directory if it doesn't exist
-    os.makedirs(output_dir, exist_ok=True)
+    output_dir = os.path.dirname(output_file)
+    if output_dir:
+        os.makedirs(output_dir, exist_ok=True)
     
-    # Shuffle the lines
-    random.shuffle(all_lines)
+    # Delete old file if it exists
+    if os.path.exists(output_file):
+        os.remove(output_file)
     
-    # Calculate split indices
-    total_lines = len(all_lines)
-    
-    # Save the files
-    dataset_file = os.path.join(output_dir, "arithmetic_dataset.txt")
-    
-    # Delete old files if they exist
-    for file_path in [dataset_file]:
-        if os.path.exists(file_path):
-            os.remove(file_path)
-    
-    # Write the files
-    with open(dataset_file, 'w') as f:
+    # Write the file
+    with open(output_file, 'w') as f:
         f.write('\n'.join(all_lines))
     
-    print(f"Dataset saved to {dataset_file}")
+    print(f"Dataset saved to {output_file}")
 
 def main():
     # Create a parser with a more descriptive help message
@@ -202,8 +201,8 @@ Examples:
     
     # Group for output configuration
     output_group = parser.add_argument_group('Output Configuration')
-    output_group.add_argument('--output-dir', type=str, default=".",
-                        help='Directory to save the dataset files (default: ".")')
+    output_group.add_argument('--output', type=str, default="./dataset_011-maths-text.txt",
+                        help='Output file path to save the dataset (default: "./dataset_011-maths-text.txt")')
     
     args = parser.parse_args()
     
@@ -227,7 +226,7 @@ Examples:
     print("Starting dataset generation with the following parameters:")
     print(f"  Operations: {operations}")
     print(f"  Max digits: {args.max_digits}")
-    print(f"  Output directory: {args.output_dir}")
+    print(f"  Output file: {args.output}")
     print(f"  Sample limits: 1-digit: {args.digit_1_limit}, 2-digit: {args.digit_2_limit}, 3-digit: {args.digit_3_limit}")
     print("\nGenerating dataset...")
     
@@ -239,11 +238,11 @@ Examples:
     )
     
     # Split and save the dataset
-    output_dir = args.output_dir
-    split_and_save_dataset(all_lines, output_dir)
+    output_file = args.output
+    split_and_save_dataset(all_lines, output_file)
     
     print("Dataset generation completed successfully!")
-    print(f"Output saved to: {output_dir}")
+    print(f"Output saved to: {output_file}")
     print(f"Total examples generated: {len(all_lines)}")
 
 
