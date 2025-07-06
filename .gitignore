@@ -6,5 +6,6 @@ __pycache__
 *.pth
 *.pgc
 *.txt
+*.h5
 
 
