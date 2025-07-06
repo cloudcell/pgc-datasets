@@ -160,4 +160,73 @@ def save_dataset_with_metadata(filename, features, labels, metadata):
 
     return metadata
 
+def save_dataset_with_metadata_h5(filename, features, labels, metadata):
+    """
+    Save dataset with metadata to an HDF5 (.h5) file.
+    
+    Parameters:
+    -----------
+    filename : str
+        Path to save the h5 file
+    features : torch.Tensor or numpy.ndarray
+        The feature data
+    labels : torch.Tensor or numpy.ndarray
+        The label data
+    metadata : dict
+        Metadata dictionary containing dataset information
+    """
+    import h5py
+    import time
+    import numpy as np
+    import torch
+
+    # if filename already has .h5 extension, remove it
+    if filename.endswith('.h5'):
+        filename = filename[:-3]
+
+    # if the prefix is "dataset", remove it
+    if filename.startswith('dataset_'):
+        filename = filename[8:]
+    
+    # add suffix to filename as yyyymmdd_hhmmss
+    filename = "dataset_" + filename + '_' + time.strftime('%Y%m%d_%H%M%S') + '.h5'
+
+    # Convert to numpy arrays if needed
+    if isinstance(features, torch.Tensor):
+        features = features.cpu().numpy()
+    if isinstance(labels, torch.Tensor):
+        labels = labels.cpu().numpy()
+
+    # Save as HDF5 file
+    with h5py.File(filename, 'w') as f:
+        f.create_dataset('features', data=features)
+        f.create_dataset('labels', data=labels)
+        # Save metadata as attributes in a group
+        meta_group = f.create_group('metadata')
+        for key, value in metadata.items():
+            try:
+                # Try to save as attribute
+                if isinstance(value, (str, int, float, np.integer, np.floating)):
+                    meta_group.attrs[key] = value
+                elif isinstance(value, (list, tuple, np.ndarray)):
+                    meta_group.create_dataset(key, data=np.array(value))
+                elif isinstance(value, dict):
+                    # Save dict as string
+                    meta_group.attrs[key] = str(value)
+                else:
+                    meta_group.attrs[key] = str(value)
+            except Exception as e:
+                meta_group.attrs[key] = f'Could not serialize: {e}'
+    
+    print(f'Saved {filename} with {features.shape[0]} samples.')
+    print('Metadata:')
+    for key, value in metadata.items():
+        if isinstance(value, dict) and len(value) > 10:
+            print(f'  {key}: {type(value)} with {len(value)} items')
+        else:
+            print(f'  {key}: {value}')
+
+    return metadata
+
+
     

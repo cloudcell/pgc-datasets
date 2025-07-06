@@ -29,7 +29,7 @@ from tqdm import tqdm
 import sys
 import argparse
 import tempfile
-from pgc_data_lib.metadata import create_metadata, save_dataset_with_metadata
+from pgc_data_lib.metadata import create_metadata, save_dataset_with_metadata_h5
 
 class TextBinaryDataset(Dataset):
     def __init__(self, features, labels):
@@ -200,7 +200,7 @@ def main():
             final_output_path = os.path.join(output_dir, modified_base_for_saving)
 
         # Save dataset with metadata using the library
-        save_dataset_with_metadata(final_output_path, dataset.features, dataset.labels, metadata)
+        save_dataset_with_metadata_h5(final_output_path, dataset.features, dataset.labels, metadata)
 
         print(f"Dataset created with {len(dataset)} samples and saved to {final_output_path}")
 

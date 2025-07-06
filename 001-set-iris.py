@@ -7,7 +7,7 @@ import os
 
 # Add parent directory to path to import pgc_data_lib if needed
 sys.path.append(os.path.abspath(os.path.dirname(__file__)))
-from pgc_data_lib.metadata import create_metadata, validate_classification_labels, save_dataset_with_metadata
+from pgc_data_lib.metadata import create_metadata, validate_classification_labels, save_dataset_with_metadata_h5
 
 # Load CSV
 df = pd.read_csv('data/BENCHMARKS/0001-iris/iris_augmented.csv')
@@ -31,7 +31,7 @@ metadata = create_metadata(
 # Validate label consistency
 validate_classification_labels(metadata)
 
-base_filename = '001-iris-augmented.pkl'
+base_filename = '001-iris-augmented'
 
 # Save dataset with metadata
-save_dataset_with_metadata(base_filename, features_tensor, labels_tensor, metadata)
+save_dataset_with_metadata_h5(base_filename, features_tensor, labels_tensor, metadata)

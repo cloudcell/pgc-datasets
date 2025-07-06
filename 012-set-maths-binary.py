@@ -18,7 +18,7 @@ import argparse
 
 # Add parent directory to path to import pgc_data_lib
 sys.path.append(os.path.abspath(os.path.dirname(__file__)))
-from pgc_data_lib.metadata import create_metadata, validate_classification_labels, save_dataset_with_metadata
+from pgc_data_lib.metadata import create_metadata, validate_classification_labels, save_dataset_with_metadata_h5
 
 # Constants
 WINDOW_SIZE = 16  # Size of the sliding window in characters
@@ -138,7 +138,7 @@ def main():
     
     # Save dataset with metadata
     base_filename = 'dataset_012-maths-binary'
-    save_dataset_with_metadata(base_filename, dataset.features, dataset.labels, metadata)
+    save_dataset_with_metadata_h5(base_filename, dataset.features, dataset.labels, metadata)
     
     print(f"Dataset created for {input_file} with {len(dataset)} samples")
     print(f"Sample entry:")

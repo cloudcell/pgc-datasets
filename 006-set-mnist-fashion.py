@@ -7,7 +7,7 @@ import os
 
 # Add parent directory to path to import pgc_data_lib
 sys.path.append(os.path.abspath(os.path.dirname(__file__)))
-from pgc_data_lib.metadata import create_metadata, validate_classification_labels, save_dataset_with_metadata
+from pgc_data_lib.metadata import create_metadata, validate_classification_labels, save_dataset_with_metadata_h5
 
 # Load Fashion MNIST dataset
 (train_ds, test_ds), ds_info = tfds.load(
@@ -49,7 +49,7 @@ metadata = create_metadata(
 # Validate label consistency
 validate_classification_labels(metadata)
 
-base_filename = '006-mnist-fashion.pkl'
+base_filename = '006-mnist-fashion'
 
 # Save dataset with metadata
-save_dataset_with_metadata(base_filename, features, labels, metadata)
+save_dataset_with_metadata_h5(base_filename, features, labels, metadata)
