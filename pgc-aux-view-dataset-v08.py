@@ -151,7 +151,7 @@ class DatasetSelector:
             if os.path.exists(search_dir):
                 for root, _, files in os.walk(search_dir):
                     for file in files:
-                        if file.endswith('.pkl'):
+                        if file.endswith('.pkl') or file.endswith('.h5'):
                             datasets.append(os.path.join(root, file))
         # Remove duplicates, sort
         datasets = sorted(set(datasets))

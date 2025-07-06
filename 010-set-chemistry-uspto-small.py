@@ -235,7 +235,7 @@ metadata = create_metadata(
 )
 
 # Define output filename in current directory
-output_pkl = f"010-chem-uspto2023-small-{args.mode}.pkl"
+output_pkl = f"010-chem-uspto2023-small-{args.mode}"
 
 # Save dataset with metadata
 save_dataset_with_metadata_h5(output_pkl, features_tensor, labels_tensor, metadata)
