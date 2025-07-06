@@ -8,10 +8,10 @@ import numpy as np
 from pgc_data_lib.chem2augmented import generate_random_reaction_smiles
 
 
-MAX_FORMULA_LENGTH_FOR_PREFILTERING = 95
 
 # Define maximum formula length for context padding
-MAX_FORMULA_LENGTH = 98
+MAX_FORMULA_LENGTH = 64  # 98  # same as context length
+MAX_FORMULA_LENGTH_FOR_PREFILTERING = MAX_FORMULA_LENGTH - 3   # 3 characters buffer, just in case
 
 # Add parent directory to path to import pgc_data_lib
 sys.path.append(os.path.abspath(os.path.dirname(__file__)))
@@ -246,4 +246,4 @@ print(f"Total samples: {features_tensor.shape[0]}")
 print(f"Feature dimension: {features_tensor.shape[1]}")
 print(f"Number of classes: {metadata['num_classes']}")
 print(f"Min label: {metadata['min_label']}, Max label: {metadata['max_label']}")
-print(f"Dataset saved to: {output_pkl}")
+print(f"Done.")
