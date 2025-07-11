@@ -98,7 +98,7 @@ print("\nProcessing training data...")
 train_features_tensor, train_labels_tensor, train_label_chars = generate_samples(
     train_filepath,
     mode=args.mode,
-    augment=args.augment,
+    augment_nbr=args.augment,
     context_len=MAX_FORMULA_LENGTH
 )
 
@@ -107,7 +107,7 @@ print("\nProcessing testing data...")
 test_features_tensor, test_labels_tensor, test_label_chars = generate_samples(
     test_filepath,
     mode=args.mode,
-    augment=args.augment,
+    augment_nbr=args.augment,
     context_len=MAX_FORMULA_LENGTH
 )
 

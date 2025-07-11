@@ -4,7 +4,7 @@ Utility functions for PGC datasets.
 import numpy as np
 from tqdm import tqdm
 import torch
-from chem2augmented import generate_random_reaction_smiles
+from pgc_data_lib.chem2augmented import generate_random_reaction_smiles
 
 def char_to_binary(char):
     """Convert a character to its 8-bit binary representation (0-255)."""
