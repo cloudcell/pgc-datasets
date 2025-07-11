@@ -12,13 +12,14 @@ def char_to_binary(char):
     return np.array([int(b) for b in format(ascii_val, '08b')], dtype=np.uint8)
 
 
-def generate_samples(input_path, mode='unigram', context_len=MAX_FORMULA_LENGTH):
+def generate_samples(input_path, mode='unigram', augment_nbr=0, context_len=98):
     """
     Generate samples from chemistry data with bit encoding and support for unigram/bigram modes
     
     Args:
         input_path: Path to the filtered chemistry data
         mode: 'unigram' or 'bigram' for character or character pair prediction
+        augment_nbr: Number of attempts to augment reaction smiles by randomising their representation
         context_len: Length of context window in characters
         
     Returns:
@@ -41,8 +42,8 @@ def generate_samples(input_path, mode='unigram', context_len=MAX_FORMULA_LENGTH)
 
         for line in tqdm(f, total=total_lines, desc="Generating samples"):
             line_raw = line.rstrip('\n')
-            if args.augment > 0:
-                augmented_smiles_dict = generate_random_reaction_smiles(line_raw, max_attempts=args.augment, random_state=42, product_canonical=True)
+            if augment_nbr > 0:
+                augmented_smiles_dict = generate_random_reaction_smiles(line_raw, max_attempts=augment_nbr, random_state=42, product_canonical=True)
                 augmented_smiles_list = list(augmented_smiles_dict.values())
             else:
                 augmented_smiles_list = [line_raw]

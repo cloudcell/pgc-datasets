@@ -107,7 +107,7 @@ print("\nProcessing testing data...")
 test_features_tensor, test_labels_tensor, test_label_chars = generate_samples(
     test_filepath,
     mode=args.mode,
-    augment_nbr=args.augment,
+    augment_nbr=0,  # no augmentation for test data
     context_len=MAX_FORMULA_LENGTH
 )
 
