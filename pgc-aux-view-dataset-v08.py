@@ -1186,9 +1186,8 @@ Max Label Value: {label_max}
                     arr = feature_values.astype(np.uint8)
                 raw_bytes = bytes(arr)
                 
-            # Display raw bytes as text, exactly like the hex viewer but without the hex part
-            for line_no, offset in enumerate(range(0, len(raw_bytes), 16), start=1):
-                chunk = raw_bytes[offset:offset+16]
+            for line_no, offset in enumerate(range(0, len(raw_bytes), 1024), start=1):
+                chunk = raw_bytes[offset:offset+1024]
                 
                 # ASCII representation, pad with spaces for missing bytes
                 ascii_bytes = ''

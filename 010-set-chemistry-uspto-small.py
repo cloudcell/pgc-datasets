@@ -94,7 +94,7 @@ def generate_samples(input_path, mode='unigram', context_len=MAX_FORMULA_LENGTH)
         for line in tqdm(f, total=total_lines, desc="Generating samples"):
             line_raw = line.rstrip('\n')
             if args.augment > 0:
-                augmented_smiles_dict = generate_random_reaction_smiles(line_raw, max_attempts=args.augment, random_state=42)
+                augmented_smiles_dict = generate_random_reaction_smiles(line_raw, max_attempts=args.augment, random_state=42, product_canonical=True)
                 augmented_smiles_list = list(augmented_smiles_dict.values())
             else:
                 augmented_smiles_list = [line_raw]
