@@ -8,6 +8,7 @@ from tqdm import tqdm
 import torch
 import numpy as np
 from pgc_data_lib.chem2augmented import generate_random_reaction_smiles
+from pgc_data_lib.utils import char_to_binary, generate_samples
 
 # Define maximum formula length for context padding
 MAX_FORMULA_LENGTH = 64  # 98  # same as context length
@@ -16,7 +17,6 @@ MAX_FORMULA_LENGTH_FOR_PREFILTERING = MAX_FORMULA_LENGTH - 3   # 3 characters bu
 # Add parent directory to path to import pgc_data_lib
 sys.path.append(os.path.abspath(os.path.dirname(__file__)))
 from pgc_data_lib.metadata import create_metadata, validate_classification_labels, save_dataset_with_metadata_h5
-from pgc_data_lib.utils import char_to_binary, generate_samples
 
 # Parse command line arguments
 parser = argparse.ArgumentParser(description='Process USPTO chemistry data with unigram, bigram, or trigram encoding')
@@ -98,6 +98,7 @@ print("\nProcessing training data...")
 train_features_tensor, train_labels_tensor, train_label_chars = generate_samples(
     train_filepath,
     mode=args.mode,
+    augment=args.augment,
     context_len=MAX_FORMULA_LENGTH
 )
 
@@ -106,6 +107,7 @@ print("\nProcessing testing data...")
 test_features_tensor, test_labels_tensor, test_label_chars = generate_samples(
     test_filepath,
     mode=args.mode,
+    augment=args.augment,
     context_len=MAX_FORMULA_LENGTH
 )
 
