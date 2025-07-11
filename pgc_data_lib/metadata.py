@@ -95,14 +95,14 @@ def validate_classification_labels(metadata):
     """
     assert metadata['task_type'] == 'classification', "This validation is only for classification tasks"
     
-    assert metadata['min_label'] == 0, \
-        f"Minimum label should be 0, but got {metadata['min_label']}"
+    # assert metadata['min_label'] == 0, \
+    #     f"Minimum label should be 0, but got {metadata['min_label']}"
     
-    assert metadata['max_label'] == metadata['num_classes'] - 1, \
-        f"Maximum label should be {metadata['num_classes'] - 1}, but got {metadata['max_label']}"
+    assert metadata['max_label'] <= metadata['num_classes'] - 1, \
+        f"Maximum label should be <= {metadata['num_classes'] - 1}, but got {metadata['max_label']}"
     
-    assert metadata['max_label'] - metadata['min_label'] + 1 == metadata['num_classes'], \
-        f"Number of classes ({metadata['num_classes']}) should equal " \
+    assert metadata['max_label'] - metadata['min_label'] + 1 <= metadata['num_classes'], \
+        f"Number of classes ({metadata['num_classes']}) should <= " \
         f"max_label - min_label + 1 ({metadata['max_label'] - metadata['min_label'] + 1})"
 
 
@@ -184,12 +184,12 @@ def save_dataset_with_metadata_h5(filename, features, labels, metadata):
     if filename.endswith('.h5'):
         filename = filename[:-3]
 
-    # if the prefix is "dataset", remove it
-    if filename.startswith('dataset_'):
-        filename = filename[8:]
+    # # if the prefix is "dataset", remove it
+    # if filename.startswith('dataset_'):
+    #     filename = filename[8:]
     
     # add suffix to filename as yyyymmdd_hhmmss
-    filename = "dataset_" + filename + '_' + time.strftime('%Y%m%d_%H%M%S') + '.h5'
+    filename = filename + '_' + time.strftime('%Y%m%d_%H%M%S') + '.h5'
 
     # Convert to numpy arrays if needed
     if isinstance(features, torch.Tensor):

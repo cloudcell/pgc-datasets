@@ -146,35 +146,35 @@ validate_classification_labels(train_metadata)
 validate_classification_labels(test_metadata)
 
 # Save the datasets with metadata
-train_h5 = os.path.join(output_dir, f"chemistry_uspto_{args.mode}_train_{timestamp}.h5")
-test_h5 = os.path.join(output_dir, f"chemistry_uspto_{args.mode}_test_{timestamp}.h5")
+train_h5 = os.path.join(output_dir, f"dataset_010-chemistry_uspto_{args.mode}_train_{timestamp}.h5")
+test_h5 = os.path.join(output_dir, f"dataset_010-chemistry_uspto_{args.mode}_test_{timestamp}.h5")
 
 save_dataset_with_metadata_h5(
+    train_h5,
     train_features_tensor,
     train_labels_tensor,
-    train_metadata,
-    train_h5
+    train_metadata
 )
 
 save_dataset_with_metadata_h5(
+    test_h5,
     test_features_tensor,
     test_labels_tensor,
-    test_metadata,
-    test_h5
+    test_metadata
 )
 
 print(f"\nTraining dataset saved to {train_h5}")
 print(f"Testing dataset saved to {test_h5}")
 
-# Save label characters for reference (optional)
-train_labels_pkl = os.path.join(output_dir, f"chemistry_uspto_{args.mode}_train_labels_{timestamp}.pkl")
-test_labels_pkl = os.path.join(output_dir, f"chemistry_uspto_{args.mode}_test_labels_{timestamp}.pkl")
+# # Save label characters for reference (optional)
+# train_labels_pkl = os.path.join(output_dir, f"chemistry_uspto_{args.mode}_train_labels_{timestamp}.pkl")
+# test_labels_pkl = os.path.join(output_dir, f"chemistry_uspto_{args.mode}_test_labels_{timestamp}.pkl")
 
-with open(train_labels_pkl, 'wb') as f:
-    pickle.dump(train_label_chars, f)
+# with open(train_labels_pkl, 'wb') as f:
+#     pickle.dump(train_label_chars, f)
 
-with open(test_labels_pkl, 'wb') as f:
-    pickle.dump(test_label_chars, f)
+# with open(test_labels_pkl, 'wb') as f:
+#     pickle.dump(test_label_chars, f)
 
 print("\nProcessing complete.")
 print(f"Random seed used: {args.seed}")

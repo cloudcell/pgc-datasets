@@ -31,7 +31,7 @@ metadata = create_metadata(
 # Validate label consistency
 validate_classification_labels(metadata)
 
-base_filename = '001-iris-augmented'
+base_filename = 'dataset_001-iris-augmented'
 
 # Save dataset with metadata
 save_dataset_with_metadata_h5(base_filename, features_tensor, labels_tensor, metadata)
