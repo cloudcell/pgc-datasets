@@ -2,6 +2,8 @@ import os
 import sys
 import pickle
 import argparse
+import random
+import datetime
 from tqdm import tqdm
 import torch
 import numpy as np
@@ -18,53 +20,96 @@ from pgc_data_lib.utils import char_to_binary, generate_samples
 
 # Parse command line arguments
 parser = argparse.ArgumentParser(description='Process USPTO chemistry data with unigram, bigram, or trigram encoding')
+parser.add_argument('--input', required=True, help='Path to the input file containing reaction SMILES')
 parser.add_argument('--mode', required=True, choices=['unigram','bigram','trigram'],
                     help="Mode for encoding: unigram (single characters), bigram (character pairs), or trigram (triplets)")
+parser.add_argument('--test_size', type=float, default=0.1, 
+                    help='Fraction of data to use for testing (default: 0.1)')
+parser.add_argument('--seed', type=int, default=42, 
+                    help='Random seed for reproducible train/test splitting (default: 42)')
 # augment reaction smiles by specified number of attempts
-parser.add_argument('--augment', type=int, default=0, help='Number of attempts to augment reaction smiles by randomising their representation')
+parser.add_argument('--augment', type=int, default=0, 
+                    help='Number of attempts to augment reaction smiles by randomising their representation')
                     
 args = parser.parse_args()
 
+# Set random seed for reproducibility
+random.seed(args.seed)
+np.random.seed(args.seed)
+torch.manual_seed(args.seed)
+
 # File paths
-# Define the subfolder path for input only
-subfolder = os.path.join(os.path.dirname(__file__), "data", "CHEMINFORMATICS")
-os.makedirs(subfolder, exist_ok=True)
+# Get input file path from arguments
+input_filepath = os.path.abspath(args.input)
+if not os.path.exists(input_filepath):
+    raise FileNotFoundError(f"Input file not found: {input_filepath}")
 
-# Define input file path (in subfolder)
-input_filepath = os.path.join(subfolder, "reactionSmilesFigShareUSPTO2023.txt")
+# Generate timestamp for output files
+timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
 
-# Define output file paths (in current directory)
-output_filepath = f"{input_filepath}_filtered.txt"
+# Define output file paths
+output_dir = os.path.dirname(input_filepath)
+base_filename = os.path.splitext(os.path.basename(input_filepath))[0]
+output_filepath = os.path.join(output_dir, f"{base_filename}_filtered_{timestamp}.txt")
 
 # Filter the input file to remove lines without two '>' and formulas longer than MAX_FORMULA_LENGTH_FOR_PREFILTERING
-if not os.path.exists(output_filepath):
-    print(f"Filtering data...")
-    total_lines = 0
-    filtered_lines = 0
-    with open(input_filepath, 'r') as f_in, open(output_filepath, 'w') as f_out:
-        for line in f_in:
-            total_lines += 1
-            # Check for required '>' characters
-            if line.count('>') >= 2:
-                # Check entire formula length (the whole line)
-                if len(line) <= MAX_FORMULA_LENGTH_FOR_PREFILTERING:
-                    f_out.write(line)
-                    filtered_lines += 1
-    print(f"Filtering complete. Kept {filtered_lines} out of {total_lines} lines.")
-    print(f"Filtered data saved to: {output_filepath}")
-else:
-    print(f"Using existing filtered data from: {output_filepath}")
+print(f"Filtering data from {input_filepath}...")
+total_lines = 0
+filtered_lines = 0
+filtered_data = []
 
-# --- Generate samples from the filtered file (no splitting) ---
+with open(input_filepath, 'r') as f_in:
+    for line in f_in:
+        total_lines += 1
+        # Check for required '>' characters
+        if line.count('>') >= 2:
+            # Check entire formula length (the whole line)
+            if len(line) <= MAX_FORMULA_LENGTH_FOR_PREFILTERING:
+                filtered_data.append(line)
+                filtered_lines += 1
 
-# Generate samples from the filtered file with the specified mode
-features_tensor, labels_tensor, label_chars = generate_samples(
-    output_filepath,
+print(f"Filtering complete. Kept {filtered_lines} out of {total_lines} lines.")
+
+# Split the filtered data into train/val and test sets
+random.shuffle(filtered_data)  # Shuffle the data before splitting
+test_size = int(len(filtered_data) * args.test_size)
+train_data = filtered_data[test_size:]
+test_data = filtered_data[:test_size]
+
+print(f"Split data into {len(train_data)} training samples and {len(test_data)} testing samples.")
+
+# Save the split datasets to files
+train_filepath = os.path.join(output_dir, f"{base_filename}_train_{timestamp}.txt")
+test_filepath = os.path.join(output_dir, f"{base_filename}_test_{timestamp}.txt")
+
+with open(train_filepath, 'w') as f_out:
+    f_out.writelines(train_data)
+
+with open(test_filepath, 'w') as f_out:
+    f_out.writelines(test_data)
+
+print(f"Training data saved to: {train_filepath}")
+print(f"Testing data saved to: {test_filepath}")
+
+# --- Generate samples from the split files ---
+
+# Process training data
+print("\nProcessing training data...")
+train_features_tensor, train_labels_tensor, train_label_chars = generate_samples(
+    train_filepath,
     mode=args.mode,
     context_len=MAX_FORMULA_LENGTH
 )
 
-# Create metadata using the library function
+# Process testing data
+print("\nProcessing testing data...")
+test_features_tensor, test_labels_tensor, test_label_chars = generate_samples(
+    test_filepath,
+    mode=args.mode,
+    context_len=MAX_FORMULA_LENGTH
+)
+
+# Create metadata for both datasets
 if args.mode == 'unigram':
     num_classes = 256
 elif args.mode == 'bigram':
@@ -73,25 +118,73 @@ elif args.mode == 'trigram':
     num_classes = 256 ** 3
 else:
     num_classes = None
-metadata = create_metadata(
-    features=features_tensor,
-    labels=labels_tensor,
-    dataset_name=f"chem-uspto2023-small-{args.mode}",
-    task_type="classification",
-    feature_dim=(features_tensor.shape[1],),
-    num_classes=num_classes
+
+# Create metadata for training dataset
+train_metadata = create_metadata(
+    features=train_features_tensor,
+    labels=train_labels_tensor,
+    task_type='classification',
+    num_classes=num_classes,
+    feature_names=None,  # We don't have named features for bit-encoded data
+    class_names=None,    # We don't have named classes for ASCII values
+    description=f"USPTO Chemistry training dataset with {args.mode} encoding",
+    context_length=MAX_FORMULA_LENGTH,
+    bit_encoded=True
 )
 
-# Define output filename in current directory
-output_pkl = f"010-chem-uspto2023-small-{args.mode}"
+# Create metadata for testing dataset
+test_metadata = create_metadata(
+    features=test_features_tensor,
+    labels=test_labels_tensor,
+    task_type='classification',
+    num_classes=num_classes,
+    feature_names=None,
+    class_names=None,
+    description=f"USPTO Chemistry testing dataset with {args.mode} encoding",
+    context_length=MAX_FORMULA_LENGTH,
+    bit_encoded=True
+)
 
-# Save dataset with metadata
-save_dataset_with_metadata_h5(output_pkl, features_tensor, labels_tensor, metadata)
+# Validate the metadata
+validate_classification_labels(train_labels_tensor, train_metadata)
+validate_classification_labels(test_labels_tensor, test_metadata)
 
-print(f"Processing complete. All data merged into a single dataset.")
-print(f"Mode: {args.mode}")
-print(f"Total samples: {features_tensor.shape[0]}")
-print(f"Feature dimension: {features_tensor.shape[1]}")
-print(f"Number of classes: {metadata['num_classes']}")
-print(f"Min label: {metadata['min_label']}, Max label: {metadata['max_label']}")
+# Save the datasets with metadata
+train_h5 = os.path.join(output_dir, f"chemistry_uspto_{args.mode}_train_{timestamp}.h5")
+test_h5 = os.path.join(output_dir, f"chemistry_uspto_{args.mode}_test_{timestamp}.h5")
+
+save_dataset_with_metadata_h5(
+    train_features_tensor,
+    train_labels_tensor,
+    train_metadata,
+    train_h5
+)
+
+save_dataset_with_metadata_h5(
+    test_features_tensor,
+    test_labels_tensor,
+    test_metadata,
+    test_h5
+)
+
+print(f"\nTraining dataset saved to {train_h5}")
+print(f"Testing dataset saved to {test_h5}")
+
+# Save label characters for reference (optional)
+train_labels_pkl = os.path.join(output_dir, f"chemistry_uspto_{args.mode}_train_labels_{timestamp}.pkl")
+test_labels_pkl = os.path.join(output_dir, f"chemistry_uspto_{args.mode}_test_labels_{timestamp}.pkl")
+
+with open(train_labels_pkl, 'wb') as f:
+    pickle.dump(train_label_chars, f)
+
+with open(test_labels_pkl, 'wb') as f:
+    pickle.dump(test_label_chars, f)
+
+print("\nProcessing complete.")
+print(f"Random seed used: {args.seed}")
+print(f"Test size: {args.test_size} ({len(test_data)} samples)")
+print(f"Training size: {1-args.test_size} ({len(train_data)} samples)")
+print(f"Feature dimension: {train_features_tensor.shape[1]}")
+print(f"Number of classes: {train_metadata['num_classes']}")
+print(f"Min label: {train_metadata['min_label']}, Max label: {train_metadata['max_label']}")
 print(f"Done.")
