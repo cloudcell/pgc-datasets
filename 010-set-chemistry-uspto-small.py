@@ -125,31 +125,25 @@ else:
 train_metadata = create_metadata(
     features=train_features_tensor,
     labels=train_labels_tensor,
-    task_type='classification',
-    num_classes=num_classes,
-    feature_names=None,  # We don't have named features for bit-encoded data
-    class_names=None,    # We don't have named classes for ASCII values
-    description=f"USPTO Chemistry training dataset with {args.mode} encoding",
-    context_length=MAX_FORMULA_LENGTH,
-    bit_encoded=True
+    dataset_name=f"chem-uspto2023-small-{args.mode}-train",
+    task_type="classification",
+    feature_dim=(train_features_tensor.shape[1],),
+    num_classes=num_classes
 )
 
 # Create metadata for testing dataset
 test_metadata = create_metadata(
     features=test_features_tensor,
     labels=test_labels_tensor,
-    task_type='classification',
-    num_classes=num_classes,
-    feature_names=None,
-    class_names=None,
-    description=f"USPTO Chemistry testing dataset with {args.mode} encoding",
-    context_length=MAX_FORMULA_LENGTH,
-    bit_encoded=True
+    dataset_name=f"chem-uspto2023-small-{args.mode}-test",
+    task_type="classification",
+    feature_dim=(test_features_tensor.shape[1],),
+    num_classes=num_classes
 )
 
 # Validate the metadata
-validate_classification_labels(train_labels_tensor, train_metadata)
-validate_classification_labels(test_labels_tensor, test_metadata)
+validate_classification_labels(train_metadata)
+validate_classification_labels(test_metadata)
 
 # Save the datasets with metadata
 train_h5 = os.path.join(output_dir, f"chemistry_uspto_{args.mode}_train_{timestamp}.h5")
