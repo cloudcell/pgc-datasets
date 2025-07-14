@@ -26,8 +26,18 @@ def generate_augmented_smiles(smiles, max_attempts=10, random_state=42):
 def generate_random_reaction_smiles(reaction_smiles, max_attempts=10, random_state=42, product_canonical=True):
     random.seed(random_state)
     dict_reactions = {}
+    
+    # Check if reaction_smiles has the expected format with two '>' characters
+    if reaction_smiles.count('>') != 2:
+        print(f"WARNING: Reaction SMILES does not have the expected format (missing '>'): {reaction_smiles}")
+        return {0: reaction_smiles}  # Return original as fallback
+        
     # break reaction smiles into reactants and products
-    reactants, agents, products = reaction_smiles.split('>')
+    try:
+        reactants, agents, products = reaction_smiles.split('>')
+    except ValueError:
+        print(f"WARNING: Could not split reaction SMILES correctly: {reaction_smiles}")
+        return {0: reaction_smiles}  # Return original as fallback
     # generate augmented smiles for reactants, agents, and products
     dict_reactants = generate_augmented_smiles(reactants, max_attempts=max_attempts, random_state=random_state)
     dict_agents = generate_augmented_smiles(agents, max_attempts=max_attempts, random_state=random_state)
@@ -43,7 +53,7 @@ def generate_random_reaction_smiles(reaction_smiles, max_attempts=10, random_sta
     else:
         dict_products = generate_augmented_smiles(products, max_attempts=max_attempts, random_state=random_state)
     # Check for empty dicts to avoid KeyError
-    if not dict_reactants or not dict_agents or not dict_products:
+    if not dict_reactants or not dict_products:  # Agents can be empty
         print(f"WARNING: Could not generate augmented SMILES for: {reaction_smiles}")
         # return the original reaction smiles
         return {0: reaction_smiles}

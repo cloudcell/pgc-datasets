@@ -13,7 +13,7 @@ def char_to_binary(char):
     return np.array([int(b) for b in format(ascii_val, '08b')], dtype=np.uint8)
 
 
-def generate_samples(input_path, mode='unigram', augment_nbr=0, context_len=98):
+def generate_samples(input_path, mode='unigram', augment_nbr=0, context_len=98, debug=True):
     """
     Generate samples from chemistry data with bit encoding and support for unigram/bigram modes
     
@@ -35,6 +35,11 @@ def generate_samples(input_path, mode='unigram', augment_nbr=0, context_len=98):
     labels = []
     label_chars = []  # Store original character representations
     
+    # Counters for debugging
+    total_smiles = 0
+    valid_smiles = 0
+    invalid_smiles = 0
+    
     # Count total lines for progress bar
     with open(input_path, 'r', encoding='utf-8') as f:
         total_lines = sum(1 for _ in f)
@@ -42,6 +47,7 @@ def generate_samples(input_path, mode='unigram', augment_nbr=0, context_len=98):
     with open(input_path, 'r', encoding='utf-8') as f:
 
         for line in tqdm(f, total=total_lines, desc="Generating samples"):
+            total_smiles += 1
             line_raw = line.rstrip('\n')
             if augment_nbr > 0:
                 augmented_smiles_dict = generate_random_reaction_smiles(line_raw, max_attempts=augment_nbr, random_state=42, product_canonical=True)
@@ -53,7 +59,9 @@ def generate_samples(input_path, mode='unigram', augment_nbr=0, context_len=98):
                     mol = Chem.MolFromSmiles(line_raw, sanitize=False)
                 if mol is None:
                     print(f"WARNING: RDKit could not parse SMILES: {line_raw}")
+                    invalid_smiles += 1
                     continue
+                valid_smiles += 1
                 line_raw = Chem.MolToSmiles(mol, canonical=True, isomericSmiles=True)
                 augmented_smiles_list = [line_raw]
 
@@ -163,6 +171,17 @@ def generate_samples(input_path, mode='unigram', augment_nbr=0, context_len=98):
         print(f"Labels range: {labels_tensor.min().item()} to {labels_tensor.max().item()}")
         print(f"Using plain ASCII codes without remapping")
         
+        if debug:
+            print(f"SMILES processing summary:")
+            print(f"  Total SMILES processed: {total_smiles}")
+            print(f"  Valid SMILES: {valid_smiles}")
+            print(f"  Invalid SMILES: {invalid_smiles}")
+        
         return features_tensor, labels_tensor, label_chars
     else:
+        if debug:
+            print(f"SMILES processing summary:")
+            print(f"  Total SMILES processed: {total_smiles}")
+            print(f"  Valid SMILES: {valid_smiles}")
+            print(f"  Invalid SMILES: {invalid_smiles}")
         raise ValueError("No samples were generated. Check the input data.")

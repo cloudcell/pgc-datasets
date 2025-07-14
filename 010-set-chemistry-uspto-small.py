@@ -30,6 +30,10 @@ parser.add_argument('--seed', type=int, default=42,
 # augment reaction smiles by specified number of attempts
 parser.add_argument('--augment', type=int, default=0, 
                     help='Number of attempts to augment reaction smiles by randomising their representation')
+parser.add_argument('--skip-invalid', action='store_true',
+                    help='Skip invalid SMILES instead of failing')
+parser.add_argument('--debug', action='store_true',
+                    help='Enable debug output')
                     
 args = parser.parse_args()
 
@@ -95,21 +99,39 @@ print(f"Testing data saved to: {test_filepath}")
 
 # Process training data
 print("\nProcessing training data...")
-train_features_tensor, train_labels_tensor, train_label_chars = generate_samples(
-    train_filepath,
-    mode=args.mode,
-    augment_nbr=args.augment,
-    context_len=MAX_FORMULA_LENGTH
-)
+try:
+    train_features_tensor, train_labels_tensor, train_label_chars = generate_samples(
+        train_filepath,
+        mode=args.mode,
+        augment_nbr=args.augment,
+        context_len=MAX_FORMULA_LENGTH,
+        debug=args.debug
+    )
+except ValueError as e:
+    if args.skip_invalid:
+        print(f"WARNING: {str(e)}")
+        print("No valid samples were generated from training data. Skipping training data processing.")
+        sys.exit(1)
+    else:
+        raise
 
 # Process testing data
 print("\nProcessing testing data...")
-test_features_tensor, test_labels_tensor, test_label_chars = generate_samples(
-    test_filepath,
-    mode=args.mode,
-    augment_nbr=0,  # no augmentation for test data
-    context_len=MAX_FORMULA_LENGTH
-)
+try:
+    test_features_tensor, test_labels_tensor, test_label_chars = generate_samples(
+        test_filepath,
+        mode=args.mode,
+        augment_nbr=0,  # no augmentation for test data
+        context_len=MAX_FORMULA_LENGTH,
+        debug=args.debug
+    )
+except ValueError as e:
+    if args.skip_invalid:
+        print(f"WARNING: {str(e)}")
+        print("No valid samples were generated from test data. Skipping test data processing.")
+        sys.exit(1)
+    else:
+        raise
 
 # Create metadata for both datasets
 if args.mode == 'unigram':
