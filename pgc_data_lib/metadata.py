@@ -59,19 +59,40 @@ def create_metadata(features, labels, dataset_name, task_type='classification', 
         if num_classes is not None:
             n_classes = num_classes
         else:
-            n_classes = len(torch.unique(labels))
-        metadata.update({
-            'num_classes': n_classes,
-            'min_label': int(torch.min(labels).item()),
-            'max_label': int(torch.max(labels).item()),
-        })
+            n_classes = len(torch.unique(labels)) if labels.numel() > 0 else 0
+        
+        # Handle empty tensors gracefully
+        if labels.numel() > 0:
+            metadata.update({
+                'num_classes': n_classes,
+                'min_label': int(torch.min(labels).item()),
+                'max_label': int(torch.max(labels).item()),
+            })
+        else:
+            # For empty tensors, use default values
+            metadata.update({
+                'num_classes': n_classes,
+                'min_label': 0,
+                'max_label': n_classes - 1 if n_classes > 0 else 0,
+                'empty_data': True  # Flag to indicate empty data
+            })
     elif task_type == 'regression':
-        metadata.update({
-            'min_label': float(torch.min(labels).item()),
-            'max_label': float(torch.max(labels).item()),
-            'mean_label': float(torch.mean(labels).item()),
-            'std_label': float(torch.std(labels).item()),
-        })
+        if labels.numel() > 0:
+            metadata.update({
+                'min_label': float(torch.min(labels).item()),
+                'max_label': float(torch.max(labels).item()),
+                'mean_label': float(torch.mean(labels).item()),
+                'std_label': float(torch.std(labels).item()),
+            })
+        else:
+            # For empty tensors, use default values
+            metadata.update({
+                'min_label': 0.0,
+                'max_label': 0.0,
+                'mean_label': 0.0,
+                'std_label': 0.0,
+                'empty_data': True  # Flag to indicate empty data
+            })
     
     return metadata
 
@@ -94,6 +115,10 @@ def validate_classification_labels(metadata):
         If any validation check fails
     """
     assert metadata['task_type'] == 'classification', "This validation is only for classification tasks"
+    
+    # Skip validation for empty data
+    if metadata.get('empty_data', False):
+        return
     
     # assert metadata['min_label'] == 0, \
     #     f"Minimum label should be 0, but got {metadata['min_label']}"

@@ -6,6 +6,7 @@ from tqdm import tqdm
 import torch
 from pgc_data_lib.chem2augmented import generate_random_reaction_smiles
 import rdkit.Chem as Chem
+from rdkit.Chem import AllChem  # For reaction parsing
 
 def char_to_binary(char):
     """Convert a character to its 8-bit binary representation (0-255)."""
@@ -13,7 +14,7 @@ def char_to_binary(char):
     return np.array([int(b) for b in format(ascii_val, '08b')], dtype=np.uint8)
 
 
-def generate_samples(input_path, mode='unigram', augment_nbr=0, context_len=98, debug=True):
+def generate_samples(input_path, mode='unigram', augment_nbr=0, context_len=98, debug=True, min_valid_samples=1):
     """
     Generate samples from chemistry data with bit encoding and support for unigram/bigram modes
     
@@ -39,6 +40,13 @@ def generate_samples(input_path, mode='unigram', augment_nbr=0, context_len=98, 
     total_smiles = 0
     valid_smiles = 0
     invalid_smiles = 0
+    invalid_format = 0
+    missing_separators = 0
+    rdkit_parse_errors = 0
+    other_errors = 0
+    
+    # Sample some problematic SMILES for debugging
+    problematic_samples = []
     
     # Count total lines for progress bar
     with open(input_path, 'r', encoding='utf-8') as f:
@@ -49,21 +57,56 @@ def generate_samples(input_path, mode='unigram', augment_nbr=0, context_len=98, 
         for line in tqdm(f, total=total_lines, desc="Generating samples"):
             total_smiles += 1
             line_raw = line.rstrip('\n')
+            
+            # Skip empty lines or lines with just separators
+            if not line_raw or line_raw.strip() == '>>' or not '>>' in line_raw:
+                invalid_smiles += 1
+                other_errors += 1
+                if len(problematic_samples) < 5:
+                    problematic_samples.append(("Empty or malformed reaction", line_raw))
+                continue
+                
             if augment_nbr > 0:
-                augmented_smiles_dict = generate_random_reaction_smiles(line_raw, max_attempts=augment_nbr, random_state=42, product_canonical=True)
-                augmented_smiles_list = list(augmented_smiles_dict.values())
+                try:
+                    augmented_smiles_dict = generate_random_reaction_smiles(line_raw, max_attempts=augment_nbr, random_state=42, product_canonical=True)
+                    augmented_smiles_list = list(augmented_smiles_dict.values())
+                except Exception as e:
+                    print(f"WARNING: Error augmenting SMILES: {line_raw}, error: {str(e)}")
+                    invalid_smiles += 1
+                    other_errors += 1
+                    if len(problematic_samples) < 5:
+                        problematic_samples.append(("Augmentation error", line_raw))
+                    continue
             else:
                 # product must be canonical
-                mol = Chem.MolFromSmiles(line_raw)
-                if mol is None:
-                    mol = Chem.MolFromSmiles(line_raw, sanitize=False)
-                if mol is None:
-                    print(f"WARNING: RDKit could not parse SMILES: {line_raw}")
+                try:
+                    # Parse as a reaction instead of a molecule
+                    rxn = AllChem.ReactionFromSmarts(line_raw, useSmiles=True)
+                    if rxn is None:
+                        print(f"WARNING: RDKit could not parse reaction SMILES: {line_raw}")
+                        invalid_smiles += 1
+                        rdkit_parse_errors += 1
+                        if len(problematic_samples) < 5:
+                            problematic_samples.append(("RDKit parse error", line_raw))
+                        continue
+                    
+                    # Convert back to canonical form if needed
+                    if True:  # Always canonicalize
+                        try:
+                            line_raw = AllChem.ReactionToSmiles(rxn)
+                        except Exception as e:
+                            print(f"WARNING: Error converting reaction to canonical SMILES: {line_raw}, error: {str(e)}")
+                            # Continue with the original SMILES
+                    
+                    valid_smiles += 1
+                    augmented_smiles_list = [line_raw]
+                except Exception as e:
+                    print(f"WARNING: Unexpected error parsing SMILES: {line_raw}, error: {str(e)}")
                     invalid_smiles += 1
+                    other_errors += 1
+                    if len(problematic_samples) < 5:
+                        problematic_samples.append(("Unexpected error", line_raw))
                     continue
-                valid_smiles += 1
-                line_raw = Chem.MolToSmiles(mol, canonical=True, isomericSmiles=True)
-                augmented_smiles_list = [line_raw]
 
             for i in range(len(augmented_smiles_list)):
                 line = augmented_smiles_list[i]
@@ -72,6 +115,9 @@ def generate_samples(input_path, mode='unigram', augment_nbr=0, context_len=98, 
                 idx1 = line.find('>')
                 idx2 = line.find('>', idx1 + 1) if idx1 != -1 else -1
                 if idx2 == -1:
+                    missing_separators += 1
+                    if len(problematic_samples) < 5:
+                        problematic_samples.append(("Missing separators", line))
                     continue  # Skip lines without two '>'
                     
                 stub = line[:idx2+1]
@@ -161,7 +207,7 @@ def generate_samples(input_path, mode='unigram', augment_nbr=0, context_len=98, 
                             break
     
     # Convert to numpy arrays and then to torch tensors
-    if features:
+    if len(features) >= min_valid_samples:
         features_np = np.stack(features)
         labels_np = np.array(labels)
         features_tensor = torch.tensor(features, dtype=torch.float32)
@@ -176,6 +222,14 @@ def generate_samples(input_path, mode='unigram', augment_nbr=0, context_len=98, 
             print(f"  Total SMILES processed: {total_smiles}")
             print(f"  Valid SMILES: {valid_smiles}")
             print(f"  Invalid SMILES: {invalid_smiles}")
+            print(f"    - RDKit parse errors: {rdkit_parse_errors}")
+            print(f"    - Missing separators: {missing_separators}")
+            print(f"    - Other errors: {other_errors}")
+            
+            if problematic_samples:
+                print("\nSample problematic SMILES:")
+                for error_type, sample in problematic_samples:
+                    print(f"  [{error_type}] {sample}")
         
         return features_tensor, labels_tensor, label_chars
     else:
@@ -184,4 +238,12 @@ def generate_samples(input_path, mode='unigram', augment_nbr=0, context_len=98, 
             print(f"  Total SMILES processed: {total_smiles}")
             print(f"  Valid SMILES: {valid_smiles}")
             print(f"  Invalid SMILES: {invalid_smiles}")
-        raise ValueError("No samples were generated. Check the input data.")
+            print(f"    - RDKit parse errors: {rdkit_parse_errors}")
+            print(f"    - Missing separators: {missing_separators}")
+            print(f"    - Other errors: {other_errors}")
+            
+            if problematic_samples:
+                print("\nSample problematic SMILES:")
+                for error_type, sample in problematic_samples:
+                    print(f"  [{error_type}] {sample}")
+        raise ValueError(f"No samples were generated. Only {len(features)} valid samples found, minimum required: {min_valid_samples}. Check the input data.")

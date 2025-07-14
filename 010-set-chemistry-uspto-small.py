@@ -12,7 +12,7 @@ from pgc_data_lib.utils import char_to_binary, generate_samples
 
 # Define maximum formula length for context padding
 MAX_FORMULA_LENGTH = 64  # 98  # same as context length
-MAX_FORMULA_LENGTH_FOR_PREFILTERING = MAX_FORMULA_LENGTH - 3   # 3 characters buffer, just in case
+MAX_FORMULA_LENGTH_FOR_PREFILTERING = MAX_FORMULA_LENGTH - 1   # 3 characters buffer, just in case
 
 # Add parent directory to path to import pgc_data_lib
 sys.path.append(os.path.abspath(os.path.dirname(__file__)))
@@ -34,6 +34,8 @@ parser.add_argument('--skip-invalid', action='store_true',
                     help='Skip invalid SMILES instead of failing')
 parser.add_argument('--debug', action='store_true',
                     help='Enable debug output')
+parser.add_argument('--min-valid-samples', type=int, default=1,
+                    help='Minimum number of valid samples required (default: 1)')
                     
 args = parser.parse_args()
 
@@ -105,7 +107,8 @@ try:
         mode=args.mode,
         augment_nbr=args.augment,
         context_len=MAX_FORMULA_LENGTH,
-        debug=args.debug
+        debug=args.debug,
+        min_valid_samples=args.min_valid_samples
     )
 except ValueError as e:
     if args.skip_invalid:
@@ -117,53 +120,144 @@ except ValueError as e:
 
 # Process testing data
 print("\nProcessing testing data...")
-try:
-    test_features_tensor, test_labels_tensor, test_label_chars = generate_samples(
-        test_filepath,
-        mode=args.mode,
-        augment_nbr=0,  # no augmentation for test data
-        context_len=MAX_FORMULA_LENGTH,
-        debug=args.debug
-    )
-except ValueError as e:
-    if args.skip_invalid:
-        print(f"WARNING: {str(e)}")
-        print("No valid samples were generated from test data. Skipping test data processing.")
-        sys.exit(1)
-    else:
-        raise
+print(f"Processing in {args.mode} mode")
+
+# Check if test file has content
+with open(test_filepath, 'r') as f:
+    test_lines = f.readlines()
+
+if not test_lines:
+    print("No test data available. Skipping test data processing.")
+    test_features_tensor = torch.tensor([], dtype=torch.float32)
+    test_labels_tensor = torch.tensor([], dtype=torch.long)
+    test_label_chars = []
+else:
+    try:
+        test_features_tensor, test_labels_tensor, test_label_chars = generate_samples(
+            test_filepath, 
+            mode=args.mode, 
+            augment_nbr=0,  # no augmentation for test data
+            context_len=MAX_FORMULA_LENGTH,
+            debug=args.debug,
+            min_valid_samples=args.min_valid_samples
+        )
+        print(f"Test feature shape: {test_features_tensor.shape}")
+        print(f"Test labels range: {test_labels_tensor.min().item()} to {test_labels_tensor.max().item()}")
+    except ValueError as e:
+        print(f"Error processing test data: {str(e)}")
+        if not args.skip_invalid:
+            print("Consider using --skip-invalid to continue despite test data errors")
+            sys.exit(1)
+        else:
+            print("Continuing with empty test data due to --skip-invalid flag")
+            test_features_tensor = torch.tensor([], dtype=torch.float32)
+            test_labels_tensor = torch.tensor([], dtype=torch.long)
+            test_label_chars = []
 
 # Create metadata for both datasets
 if args.mode == 'unigram':
     num_classes = 256
+    # Create metadata for training dataset
+    train_metadata = create_metadata(
+        features=train_features_tensor,
+        labels=train_labels_tensor,
+        dataset_name=f"chem-uspto2023-small-{args.mode}-train",
+        task_type="classification",
+        feature_dim=(train_features_tensor.shape[1],),
+        num_classes=num_classes
+    )
+
+    # Create metadata for testing dataset
+    if test_features_tensor.numel() == 0:
+        # Use the same dimensions as training data for empty test tensors
+        test_metadata = create_metadata(
+            features=torch.zeros((0, train_features_tensor.shape[1]), dtype=torch.float32),
+            labels=torch.zeros((0, train_labels_tensor.shape[1]), dtype=torch.long) if train_labels_tensor.dim() > 1 else torch.zeros(0, dtype=torch.long),
+            dataset_name=f"chem-uspto2023-small-{args.mode}-test",
+            task_type="classification",
+            feature_dim=(train_features_tensor.shape[1],),
+            num_classes=num_classes
+        )
+        # Add flag to indicate empty test data
+        test_metadata['empty_test_data'] = True
+    else:
+        test_metadata = create_metadata(
+            features=test_features_tensor,
+            labels=test_labels_tensor,
+            dataset_name=f"chem-uspto2023-small-{args.mode}-test",
+            task_type="classification",
+            feature_dim=(test_features_tensor.shape[1],),
+            num_classes=num_classes
+        )
 elif args.mode == 'bigram':
     num_classes = 256 ** 2
+    # Create metadata for training dataset
+    train_metadata = create_metadata(
+        features=train_features_tensor,
+        labels=train_labels_tensor,
+        dataset_name=f"chem-uspto2023-small-{args.mode}-train",
+        task_type="classification",
+        feature_dim=(train_features_tensor.shape[1],),
+        num_classes=num_classes
+    )
+
+    # Create metadata for testing dataset
+    if test_features_tensor.numel() == 0:
+        # Use the same dimensions as training data for empty test tensors
+        test_metadata = create_metadata(
+            features=torch.zeros((0, train_features_tensor.shape[1]), dtype=torch.float32),
+            labels=torch.zeros((0, train_labels_tensor.shape[1]), dtype=torch.long) if train_labels_tensor.dim() > 1 else torch.zeros(0, dtype=torch.long),
+            dataset_name=f"chem-uspto2023-small-{args.mode}-test",
+            task_type="classification",
+            feature_dim=(train_features_tensor.shape[1],),
+            num_classes=num_classes
+        )
+        # Add flag to indicate empty test data
+        test_metadata['empty_test_data'] = True
+    else:
+        test_metadata = create_metadata(
+            features=test_features_tensor,
+            labels=test_labels_tensor,
+            dataset_name=f"chem-uspto2023-small-{args.mode}-test",
+            task_type="classification",
+            feature_dim=(test_features_tensor.shape[1],),
+            num_classes=num_classes
+        )
 elif args.mode == 'trigram':
     num_classes = 256 ** 3
-else:
-    num_classes = None
+    # Create metadata for training dataset
+    train_metadata = create_metadata(
+        features=train_features_tensor,
+        labels=train_labels_tensor,
+        dataset_name=f"chem-uspto2023-small-{args.mode}-train",
+        task_type="classification",
+        feature_dim=(train_features_tensor.shape[1],),
+        num_classes=num_classes
+    )
 
-# Create metadata for training dataset
-train_metadata = create_metadata(
-    features=train_features_tensor,
-    labels=train_labels_tensor,
-    dataset_name=f"chem-uspto2023-small-{args.mode}-train",
-    task_type="classification",
-    feature_dim=(train_features_tensor.shape[1],),
-    num_classes=num_classes
-)
+    # Create metadata for testing dataset
+    if test_features_tensor.numel() == 0:
+        # Use the same dimensions as training data for empty test tensors
+        test_metadata = create_metadata(
+            features=torch.zeros((0, train_features_tensor.shape[1]), dtype=torch.float32),
+            labels=torch.zeros((0, train_labels_tensor.shape[1]), dtype=torch.long) if train_labels_tensor.dim() > 1 else torch.zeros(0, dtype=torch.long),
+            dataset_name=f"chem-uspto2023-small-{args.mode}-test",
+            task_type="classification",
+            feature_dim=(train_features_tensor.shape[1],),
+            num_classes=num_classes
+        )
+        # Add flag to indicate empty test data
+        test_metadata['empty_test_data'] = True
+    else:
+        test_metadata = create_metadata(
+            features=test_features_tensor,
+            labels=test_labels_tensor,
+            dataset_name=f"chem-uspto2023-small-{args.mode}-test",
+            task_type="classification",
+            feature_dim=(test_features_tensor.shape[1],),
+            num_classes=num_classes
+        )
 
-# Create metadata for testing dataset
-test_metadata = create_metadata(
-    features=test_features_tensor,
-    labels=test_labels_tensor,
-    dataset_name=f"chem-uspto2023-small-{args.mode}-test",
-    task_type="classification",
-    feature_dim=(test_features_tensor.shape[1],),
-    num_classes=num_classes
-)
-
-# Validate the metadata
 validate_classification_labels(train_metadata)
 validate_classification_labels(test_metadata)
 
