@@ -5,6 +5,7 @@ import numpy as np
 from tqdm import tqdm
 import torch
 from pgc_data_lib.chem2augmented import generate_random_reaction_smiles
+import rdkit.Chem as Chem
 
 def char_to_binary(char):
     """Convert a character to its 8-bit binary representation (0-255)."""
@@ -46,6 +47,14 @@ def generate_samples(input_path, mode='unigram', augment_nbr=0, context_len=98):
                 augmented_smiles_dict = generate_random_reaction_smiles(line_raw, max_attempts=augment_nbr, random_state=42, product_canonical=True)
                 augmented_smiles_list = list(augmented_smiles_dict.values())
             else:
+                # product must be canonical
+                mol = Chem.MolFromSmiles(line_raw)
+                if mol is None:
+                    mol = Chem.MolFromSmiles(line_raw, sanitize=False)
+                if mol is None:
+                    print(f"WARNING: RDKit could not parse SMILES: {line_raw}")
+                    continue
+                line_raw = Chem.MolToSmiles(mol, canonical=True, isomericSmiles=True)
                 augmented_smiles_list = [line_raw]
 
             for i in range(len(augmented_smiles_list)):

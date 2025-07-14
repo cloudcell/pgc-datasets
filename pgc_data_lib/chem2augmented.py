@@ -6,6 +6,10 @@ RDLogger.DisableLog('rdApp.*')
 
 # create a function to generate augmented SMILES
 def generate_augmented_smiles(smiles, max_attempts=10, random_state=42):
+
+    if smiles == '':
+        return {0: smiles}
+
     random.seed(random_state)
     dict_augmented = {}
     mol = Chem.MolFromSmiles(smiles)
@@ -46,7 +50,11 @@ def generate_random_reaction_smiles(reaction_smiles, max_attempts=10, random_sta
     # generate random reaction smiles
     for i in range(max_attempts):
         reactant_rnd = random.randint(0, max_attempts-1)
-        agent_rnd = random.randint(0, max_attempts-1)
+        # agent_rnd can be 0 if there is no agent
+        if agents == '':
+            agent_rnd = 0
+        else:
+            agent_rnd = random.randint(0, max_attempts-1)   
         if product_canonical:
             product_rnd = 0
         else:
